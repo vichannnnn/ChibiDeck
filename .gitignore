@@ -1,0 +1,12 @@
+.build/
+build/
+.superpowers/
+.DS_Store
+*.xcodeproj
+.swiftpm/
+
+# Reference images for mascot design (not open-sourced)
+references/
+
+# Local design specs and plans (working notes, not published)
+docs/superpowers/
