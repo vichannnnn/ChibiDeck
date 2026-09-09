@@ -13,6 +13,8 @@ final class PanelUIState {
     /// Plan 6 §5: the card whose menu is open, and when it opened (the 6 s auto-close counts from here).
     var menuSessionId: String?
     var menuOpenedAt: Date?
+    /// Character select §6: when the screen opened (nil = closed); the 10 s auto-close counts from here.
+    var characterSelectOpenedAt: Date?
 
     func openSheet(for sessionId: String, now: Date = Date()) {
         sheetPage = 0
@@ -34,6 +36,9 @@ final class PanelUIState {
         menuSessionId = nil
         menuOpenedAt = nil
     }
+
+    func openCharacterSelect(now: Date = Date()) { characterSelectOpenedAt = now }
+    func closeCharacterSelect() { characterSelectOpenedAt = nil }
 
     func noteTouch(now: Date = Date()) {
         lastTouch = now

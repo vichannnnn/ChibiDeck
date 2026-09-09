@@ -61,4 +61,12 @@ import Testing
         let sheetPill = TouchRegion(target: .sheetHandoff, frame: CGRect(x: 1200, y: 640, width: 200, height: 56), z: 1)
         #expect(HitTester.hit(x: 1250, y: 660, regions: [Self.card, sheetPill]) == .sheetHandoff)
     }
+
+    @Test func characterTileWinsOverItsBackdropAndTheMascot() {
+        let backdrop = TouchRegion(target: .characterSelectClose, frame: CGRect(x: 0, y: 0, width: 2560, height: 720), z: 2)
+        let tile = TouchRegion(target: .characterPick("lantern-red"), frame: CGRect(x: 434, y: 217, width: 228, height: 285), z: 3)
+        #expect(HitTester.hit(x: 500, y: 300, regions: [Self.mascot, backdrop, tile]) == .characterPick("lantern-red"))
+        #expect(HitTester.hit(x: 200, y: 180, regions: [Self.mascot, backdrop, tile]) == .characterSelectClose)   // the mascot is under the backdrop
+        #expect(HitTester.hit(x: 500, y: 600, regions: [Self.mascot, backdrop, tile]) == .characterSelectClose)
+    }
 }

@@ -128,6 +128,10 @@ final class AppModel {
     var menuSession: Session? { ui.menuSessionId.flatMap { collector.state.session(id: $0) } }
     func closeMenu() { ui.closeMenu() }
 
+    /// Character select §6: a screen with nine choices gets a little longer than the card menu's 6 s.
+    static let characterSelectTimeout: TimeInterval = 10
+    func closeCharacterSelect() { ui.closeCharacterSelect() }
+
     /// Handoff §3: the menu row's rule, with "already running" read from the runner.
     func canHandoff(_ session: Session) -> Bool {
         ActionAvailability.canHandoff(session, actionsAvailable: actions.isAvailable, running: session.pid.map(handoffs.isRunning) ?? false)
@@ -138,7 +142,17 @@ final class AppModel {
         ui.noteTouch()
         switch target {
         case .mascot:
+            guard ui.characterSelectOpenedAt == nil else { return }    // Character select §3: the release click after the long press, or a tap under the backdrop
             cycleTheme()
+        case .characterSelect:
+            guard ui.selectedSessionId == nil, ui.menuSessionId == nil else { return }   // Character select §3: never over the sheet or the card menu
+            ui.openCharacterSelect()
+        case .characterPick(let id):
+            defer { ui.closeCharacterSelect() }
+            guard ui.characterSelectOpenedAt != nil, themes.contains(where: { $0.id == id }) else { return }
+            settings.themeId = id                                      // Character select §6: the same persisted value tap-to-cycle writes
+        case .characterSelectClose:
+            ui.closeCharacterSelect()
         case .card(let id):
             guard ui.menuSessionId == nil else { return }               // Plan 6 §5: while a menu is open only its rows and backdrop act
             guard collector.state.session(id: id) != nil else { return }

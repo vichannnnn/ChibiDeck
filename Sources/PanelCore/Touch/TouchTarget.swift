@@ -35,6 +35,11 @@ public enum TouchTarget: Hashable, Sendable {
     case menuDismiss
     case menuHide
     case menuClose
+    /// Character select §3: a long hold on the mascot (the dispatcher's long-press and the mouse gesture both send it).
+    case characterSelect
+    /// Character select §6: a tile — the theme id it picks — and the backdrop that closes the screen.
+    case characterPick(String)
+    case characterSelectClose
 }
 
 /// A tappable rectangle on the 2560×720 canvas. Higher `z` wins where regions overlap (the sheet over the cards,
