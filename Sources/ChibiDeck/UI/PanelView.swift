@@ -3,7 +3,7 @@ import PanelCore
 
 /// Spec 2026-09-07 §2: 400 px left column, 520 px limits column, 1640 px sessions column (the sheet slides over the last).
 /// Plan 3 §5.3: the root declares the canvas coordinate space and collects every `.touchTarget` region.
-/// Plan 6 §4: the card menu layer sits over the whole canvas (backdrop z 2, rows z 3).
+/// Plan 6 §4: the card menu layer sits over the whole canvas (backdrop z 2, rows z 3); Character select §4: so does the character select (backdrop z 2, tiles z 3).
 struct PanelView: View {
     @Environment(AppModel.self) private var model
     static let coordinateSpace = "panel"
@@ -37,7 +37,17 @@ struct PanelView: View {
                     CardMenu(session: session).position(x: card.midX, y: min(card.midY, 720 - CardMenu.height / 2 - 8))   // Handoff §3: four rows now; keep it on the canvas
                 }
             }
+            if model.ui.characterSelectOpenedAt != nil {                                   // Character select §4: the screen over the whole canvas
+                ZStack(alignment: .topLeading) {
+                    palette.background.opacity(0.92).frame(width: 2560, height: 720)
+                        .onTapGesture { model.perform(.characterSelectClose) }
+                        .touchTarget(.characterSelectClose, z: 2)
+                    CharacterSelect()
+                }
+                .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: model.ui.characterSelectOpenedAt != nil)
         .coordinateSpace(name: Self.coordinateSpace)
         .onPreferenceChange(TouchRegionKey.self) { regions in
             MainActor.assumeIsolated { model.touchRegions = regions }
@@ -69,6 +79,12 @@ struct PanelView: View {
             try? await Task.sleep(for: .seconds(AppModel.menuTimeout))
             guard !Task.isCancelled else { return }
             model.closeMenu()
+        }
+        .task(id: model.ui.characterSelectOpenedAt) {                            // Character select §6: closes itself after 10 s
+            guard model.ui.characterSelectOpenedAt != nil else { return }
+            try? await Task.sleep(for: .seconds(AppModel.characterSelectTimeout))
+            guard !Task.isCancelled else { return }
+            model.closeCharacterSelect()
         }
         .onChange(of: state.allSessions.map(\.sessionId)) { _, ids in
             if let id = model.ui.selectedSessionId, !ids.contains(id) { model.closeSheet() }

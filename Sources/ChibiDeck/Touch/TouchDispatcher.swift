@@ -43,7 +43,8 @@ final class TouchDispatcher {
         }
     }
 
-    /// Plan 6 §3: a long-press on a card (or its pill) opens that card's menu; anywhere else it only counts as a touch.
+    /// Plan 6 §3: a long-press on a card (or its pill) opens that card's menu; Character select §3: on the mascot it opens the
+    /// character select; anywhere else it only counts as a touch.
     private func open(_ press: LongPress) {
         let point = CoordinateMapper.map(rawX: press.rawX, rawY: press.rawY, to: Self.canvas, calibration: model.settings.touchCalibration)
         let target = HitTester.hit(x: point.x, y: point.y, regions: model.touchRegions)
@@ -51,6 +52,7 @@ final class TouchDispatcher {
         touchLog.info("long-press raw=(\(press.rawX),\(press.rawY)) canvas=(\(Int(point.x)),\(Int(point.y))) target=\(name, privacy: .public)")
         switch target {
         case .card(let id), .cardAnswer(let id): model.perform(.cardMenu(id))
+        case .mascot: model.perform(.characterSelect)                          // Character select §3
         default: model.ui.noteTouch()
         }
     }

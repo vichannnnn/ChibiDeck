@@ -1,7 +1,7 @@
 import SwiftUI
 import PanelCore
 
-/// Spec 2026-09-07 §2.2: character (tap = next theme), clock, date. Plan 3 §7: up to two permission lines
+/// Spec 2026-09-07 §2.2: character (tap = next theme; Character select §3: hold = the character select), clock, date. Plan 3 §7: up to two permission lines
 /// in blocked red under the `stale` slot (y 360 and 384), only while something is denied.
 struct LeftColumn: View {
     @Environment(AppModel.self) private var model
@@ -14,6 +14,8 @@ struct LeftColumn: View {
                 .frame(width: 280, height: 280)
                 .contentShape(Rectangle())
                 .onTapGesture { model.perform(.mascot) }
+                .simultaneousGesture(LongPressGesture(minimumDuration: LongPressRecognizer.minimumDuration)
+                    .onEnded { _ in model.perform(.characterSelect) })       // Character select §3: the mouse path; the release click is ignored while the screen is open
                 .touchTarget(.mascot)
                 .padding(.top, 40)
             Text(state.isStale ? "stale" : " ")
