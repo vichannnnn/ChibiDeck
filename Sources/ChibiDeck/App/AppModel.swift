@@ -135,6 +135,9 @@ final class AppModel {
     static let characterSelectTimeout: TimeInterval = 10
     func closeCharacterSelect() { ui.closeCharacterSelect() }
 
+    /// Handoff indicator §A: the step a running handoff waits on, or nil.
+    func handoffStage(for session: Session) -> HandoffStage? { session.pid.flatMap { handoffs.stage(pid: $0) } }
+
     /// Handoff §3: the menu row's rule, with "already running" read from the runner.
     func canHandoff(_ session: Session) -> Bool {
         ActionAvailability.canHandoff(session, actionsAvailable: actions.isAvailable, running: session.pid.map(handoffs.isRunning) ?? false)

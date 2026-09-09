@@ -21,10 +21,10 @@ The mascot loops her hair-wave animation the whole time; when a session is waiti
 
 Touch (or the mouse in the preview window):
 
-- **Tap a card** opens the detail sheet: Claude's last text, paged with ▲ ▼, the answers row, Focus tab, Handoff, Dismiss, Hide.
+- **Tap a card** opens the detail sheet: Claude's last text, paged with ▲ ▼ or a vertical swipe (up reads on, down goes back), the answers row, Focus tab, Handoff, Dismiss, Hide.
 - **Tap the answer pill** types that answer into the session's Terminal tab. Numbered options come from the question Claude asked; otherwise your quick replies (`go`, `yes`, `no` by default).
 - **Hold a card for half a second** opens the card menu: Focus tab · Handoff · Dismiss · Hide.
-- **Handoff** (card menu or the sheet) makes the session write a handoff prompt with the `/handoff` skill, clears the session with `/clear`, and pastes the prompt back into the same tab, so you come back to a fresh session that already knows where it was. Toasts report each step; the tab must be idle or busy, not waiting on a question.
+- **Handoff** (card menu or the sheet) makes the session write a handoff prompt with the `/handoff` skill, clears the session with `/clear`, and pastes the prompt back into the same tab, so you come back to a fresh session that already knows where it was. The card shows `HANDOFF · reply`, `· clear`, then `· paste` in the theme accent until the paste lands, and toasts report each step; the tab must be idle or busy, not waiting on a question.
 - **Tap the mascot** switches to the next character and colour theme. **Hold it** for the character-select screen: every character on its own colours, the current one marked; tap one to pick it, tap outside (or wait ten seconds) to close.
 
 ## Compatibility

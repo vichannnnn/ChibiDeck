@@ -3,7 +3,8 @@ import PanelCore
 
 /// Spec 2026-09-07 §2.4 and Plan 4 §5: one 388×300 card. Rows: status + elapsed, name, repo@branch, `you:`, `claude:`, tasks,
 /// context bar with its label, model and effort chips and the answer pill. Waiting cards get the yellow border and glow, blocked cards
-/// the red border, unless dismissed.
+/// the red border, unless dismissed. Handoff indicator §A: a card with a running handoff shows `HANDOFF · reply/clear/paste`
+/// in the accent with an accent border and no answer pill.
 /// Plan 6 §3: a half-second press opens the card menu.
 struct SessionCard: View {
     @Environment(\.palette) private var palette
@@ -21,15 +22,23 @@ struct SessionCard: View {
 
     /// Plan 4 §5.3: `Allow ↵`, `N opts ›` or the first quick reply, only while an answer could be typed.
     private var cardPill: AnswerResolver.CardPill? { model.cardPill(for: session) }
+    /// Handoff indicator §A: set from the tap until the paste lands or the sequence fails.
+    private var handoffStage: HandoffStage? { model.handoffStage(for: session) }
 
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .center, spacing: 10) {
-                    Circle().fill(statusColor).frame(width: 12, height: 12)
-                    Text(statusWord).font(PanelType.mono(20, .bold)).foregroundStyle(isDim ? palette.muted : statusColor)
-                    if session.status == .waiting, let reason = session.waitingFor {
-                        Text("· \(reason)").font(PanelType.mono(17)).foregroundStyle(palette.muted).lineLimit(1)
+                    if let stage = handoffStage {                                     // Handoff indicator §A
+                        Circle().fill(palette.accent).frame(width: 12, height: 12)
+                        Text("HANDOFF").font(PanelType.mono(20, .bold)).foregroundStyle(palette.accent)
+                        Text(stage.label).font(PanelType.mono(17)).foregroundStyle(palette.accent).lineLimit(1)
+                    } else {
+                        Circle().fill(statusColor).frame(width: 12, height: 12)
+                        Text(statusWord).font(PanelType.mono(20, .bold)).foregroundStyle(isDim ? palette.muted : statusColor)
+                        if session.status == .waiting, let reason = session.waitingFor {
+                            Text("· \(reason)").font(PanelType.mono(17)).foregroundStyle(palette.muted).lineLimit(1)
+                        }
                     }
                     Spacer(minLength: 8)
                     Text(PanelFormat.elapsedShort(session.elapsed(at: now))).font(PanelType.mono(17)).foregroundStyle(palette.muted)
@@ -57,7 +66,7 @@ struct SessionCard: View {
                         Chip(text: effort)                                    // Plan 4 §5.1: the session's effort level
                     }
                     Spacer(minLength: 0)
-                    if let pill = cardPill {
+                    if let pill = cardPill, handoffStage == nil {                       // Handoff indicator §A: no answers mid-handoff
                         Button(action: { model.perform(pill.opensSheet ? .card(session.sessionId) : .cardAnswer(session.sessionId)) }) {
                             // Plan 4 §5.3: theme accent, 2 pt lower than the chip row; the 6 pt pad keeps the touch region ≈ 43 pt tall.
                             Text(pill.label).font(PanelType.mono(18, .bold)).lineLimit(1).padding(.horizontal, 16).padding(.vertical, 8)
@@ -118,7 +127,8 @@ struct SessionCard: View {
     }
 
     private var borderColor: Color {
-        switch session.status {
+        if handoffStage != nil { return palette.accent }                               // Handoff indicator §A
+        return switch session.status {
         case .waiting where attention: ThemePalette.waiting
         case .blocked where attention: ThemePalette.blocked
         default: palette.line

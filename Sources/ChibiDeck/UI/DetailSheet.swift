@@ -15,6 +15,8 @@ struct DetailSheet: View {
 
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
+    /// Sheet swipe §B: when the current mouse drag began, for the one-second rule.
+    @State private var dragStart: Date?
     let session: Session
     let detail: SessionDetail
     let now: Date
@@ -101,6 +103,9 @@ struct DetailSheet: View {
             HStack(alignment: .top, spacing: 16) {
                 pill("Focus tab", target: .sheetFocus, background: palette.line, foreground: palette.text, enabled: canFocus)
                 pill("Handoff", target: .sheetHandoff, background: palette.line, foreground: palette.text, enabled: model.canHandoff(session))
+                if let stage = model.handoffStage(for: session) {                   // Handoff indicator §A
+                    Text("HANDOFF \(stage.label)").font(PanelType.mono(20, .bold)).foregroundStyle(palette.accent).padding(.top, 20)
+                }
                 pill("Dismiss", target: .sheetDismiss, background: palette.line, foreground: palette.text)
                 pill("Hide", target: .sheetHide, background: palette.line, foreground: palette.text)
                 Spacer()
@@ -119,6 +124,15 @@ struct DetailSheet: View {
         .background(palette.background)
         .contentShape(Rectangle())
         .simultaneousGesture(TapGesture().onEnded { model.perform(.sheetBackdrop) })
+        .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { drag in        // Sheet swipe §B: the mouse path, same rule in points
+            let t = drag.translation
+            if let direction = SwipeRecognizer.classify(dx: Int(t.width), dy: Int(t.height), duration: drag.time.timeIntervalSince(dragStart ?? drag.time),
+                                                         minTravel: Int(SwipeRecognizer.minTravelPoints)),
+               let action = SwipePaging.target(for: direction, over: .sheetBackdrop) {
+                model.perform(action)
+            }
+            dragStart = nil
+        }.onChanged { drag in if dragStart == nil { dragStart = drag.time } })
         .touchTarget(.sheetBackdrop, z: 1)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }

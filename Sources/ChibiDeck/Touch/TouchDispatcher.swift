@@ -5,7 +5,7 @@ import PanelCore
 /// → `AppModel.perform`. Every tap logs raw and canvas coordinates plus the target, so calibration values can be
 /// set by hand with `defaults write` if taps land off.
 /// Plan 6 §3: a half-second hold on a card is a long-press — noticed at the recogniser's deadline while the finger
-/// rests, or on a late release — and opens the card's menu.
+/// rests, or on a late release — and opens the card's menu. Sheet swipe §B: a vertical flick over the sheet pages its text.
 @MainActor
 final class TouchDispatcher {
     static let canvas = (width: 2560.0, height: 720.0)
@@ -13,12 +13,14 @@ final class TouchDispatcher {
     private let model: AppModel
     private let recognizer = TapRecognizer()
     private let longPress = LongPressRecognizer()
+    private let swipes = SwipeRecognizer()
     private var fireTask: Task<Void, Never>?
 
     init(model: AppModel) { self.model = model }
 
     func handle(_ event: TouchEvent) {
         if let press = longPress.handle(event) { open(press) }        // Plan 6 §3: a late release
+        if let swipe = swipes.handle(event) { page(swipe) }           // Sheet swipe §B
         scheduleFire()
         guard let tap = recognizer.handle(event) else { return }
         let point = CoordinateMapper.map(rawX: tap.rawX, rawY: tap.rawY, to: Self.canvas, calibration: model.settings.touchCalibration)
@@ -41,6 +43,16 @@ final class TouchDispatcher {
                   let press = self.longPress.fire(at: ProcessInfo.processInfo.systemUptime) else { return }
             self.open(press)
         }
+    }
+
+    /// Sheet swipe §B: a vertical flick over the open sheet turns its page; anywhere else it only counts as a touch.
+    private func page(_ swipe: Swipe) {
+        let point = CoordinateMapper.map(rawX: swipe.rawX, rawY: swipe.rawY, to: Self.canvas, calibration: model.settings.touchCalibration)
+        let target = HitTester.hit(x: point.x, y: point.y, regions: model.touchRegions)
+        let name = target.map { String(describing: $0) } ?? "none"
+        touchLog.info("swipe \(String(describing: swipe.direction), privacy: .public) raw=(\(swipe.rawX),\(swipe.rawY)) canvas=(\(Int(point.x)),\(Int(point.y))) target=\(name, privacy: .public)")
+        model.ui.noteTouch()
+        if let action = SwipePaging.target(for: swipe.direction, over: target) { model.perform(action) }
     }
 
     /// Plan 6 §3: a long-press on a card (or its pill) opens that card's menu; Character select §3: on the mascot it opens the

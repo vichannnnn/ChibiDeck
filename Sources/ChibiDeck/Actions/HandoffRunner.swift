@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import PanelCore
 import os
 
@@ -9,7 +10,7 @@ private let handoffLog = Logger(subsystem: "me.himaa.chibideck", category: "hand
 /// original session's transcript; each look goes to the pure `HandoffSequencer`, whose commands are carried out
 /// through the bridge. Every phase change is a toast. Types nothing but `/handoff`, `/clear` and the block.
 /// A block captured and then lost to a Terminal error is written under the app's own Application Support folder.
-@MainActor
+@MainActor @Observable
 final class HandoffRunner {
     static let pollInterval: TimeInterval = 2
 
@@ -21,6 +22,8 @@ final class HandoffRunner {
     private let actions: PanelActions
     private let ui: PanelUIState
     private var live: [Int: Live] = [:]
+    /// Handoff indicator §A: the step each running sequence waits on, for the card and the sheet; gone when it ends.
+    private(set) var stages: [Int: HandoffStage] = [:]
     /// Pids whose `/handoff` is being typed right now: reserved before the await so a double tap types it once
     /// (review 2026-09-08).
     private var starting: Set<Int> = []
@@ -33,6 +36,7 @@ final class HandoffRunner {
     }
 
     func isRunning(pid: Int) -> Bool { starting.contains(pid) || live[pid]?.sequencer.isActive == true }
+    func stage(pid: Int) -> HandoffStage? { stages[pid] }
 
     /// Handoff §4: types `/handoff` and starts watching. A pid with a running sequence is refused with a toast, and
     /// so is a session whose file says it is waiting at that instant: typed text plus Enter would answer the dialog.
@@ -42,15 +46,18 @@ final class HandoffRunner {
         let status = Self.sessionRecord(pid: pid)?.status ?? session.status
         guard status == .busy || status == .idle else { ui.toast = "handoff: session is waiting"; return }
         starting.insert(pid)
+        stages[pid] = .requesting
         Task { @MainActor in
             defer { starting.remove(pid) }
             switch await actions.sendLine(session, text: "/handoff") {
             case .done:
                 live[pid] = Live(session: session, sequencer: HandoffSequencer(pid: pid, sessionId: session.sessionId, requestedAt: Date()))
+                stages[pid] = .awaitingReply
                 ui.toast = "handoff requested"
                 handoffLog.info("requested for pid \(pid, privacy: .public) session \(session.sessionId, privacy: .public)")
                 startTimer()
             case .unavailable(let why), .failed(let why):
+                stages[pid] = nil
                 ui.toast = "handoff: \(why)"
             }
         }
@@ -68,14 +75,16 @@ final class HandoffRunner {
         tickInFlight = true
         defer { tickInFlight = false }
         for pid in live.keys.sorted() {
-            guard var entry = live[pid], entry.sequencer.isActive else { live[pid] = nil; continue }
+            guard var entry = live[pid], entry.sequencer.isActive else { live[pid] = nil; stages[pid] = nil; continue }
             let observation = await observe(pid: pid, session: entry.session, needsTranscript: entry.sequencer.phase == .requested)
             let command = entry.sequencer.observe(observation, now: Date())
             live[pid] = entry
             if let command { await carryOut(command, pid: pid) }
+            if live[pid]?.sequencer.isActive != true { stages[pid] = nil }      // Handoff indicator §A: done or failed
         }
         if live.values.allSatisfy({ !$0.sequencer.isActive }) {
             live.removeAll()
+            stages = stages.filter { starting.contains($0.key) }
             timer?.invalidate()
             timer = nil
         }
@@ -124,6 +133,7 @@ final class HandoffRunner {
         case .typeClear:
             switch await actions.sendLine(entry.session, text: "/clear") {
             case .done:
+                stages[pid] = .clearing
                 ui.toast = "handoff: clearing"
                 handoffLog.info("captured \(entry.sequencer.block?.utf8.count ?? 0, privacy: .public) bytes for pid \(pid, privacy: .public); /clear typed")
             case .unavailable(let why), .failed(let why):
@@ -131,6 +141,7 @@ final class HandoffRunner {
                 lost(why, block: entry.sequencer.block, pid: pid)
             }
         case .paste(let block):
+            stages[pid] = .pasting
             switch await actions.pasteBlock(entry.session, text: block) {
             case .done:
                 ui.toast = "handoff pasted"
