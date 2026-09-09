@@ -37,17 +37,16 @@ struct PanelView: View {
                     CardMenu(session: session).position(x: card.midX, y: min(card.midY, 720 - CardMenu.height / 2 - 8))   // Handoff §3: four rows now; keep it on the canvas
                 }
             }
-            if model.ui.characterSelectOpenedAt != nil {                                   // Character select §4: the screen over the whole canvas
-                ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {                                              // Character select §4: the screen over the whole canvas
+                if model.ui.characterSelectOpenedAt != nil {
                     palette.background.opacity(0.92).frame(width: 2560, height: 720)
                         .onTapGesture { model.perform(.characterSelectClose) }
                         .touchTarget(.characterSelectClose, z: 2)
                     CharacterSelect()
                 }
-                .transition(.opacity)
             }
+            .animation(.easeInOut(duration: 0.2), value: model.ui.characterSelectOpenedAt != nil)   // the fade stays on this layer; the palette keeps its 0.3 s
         }
-        .animation(.easeInOut(duration: 0.2), value: model.ui.characterSelectOpenedAt != nil)
         .coordinateSpace(name: Self.coordinateSpace)
         .onPreferenceChange(TouchRegionKey.self) { regions in
             MainActor.assumeIsolated { model.touchRegions = regions }

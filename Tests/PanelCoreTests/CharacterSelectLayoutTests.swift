@@ -12,8 +12,9 @@ import Testing
         // PanelCore is Foundation only, so the rect arithmetic below stays on origin and size (no CoreGraphics helpers).
         for (a, b) in zip(l.frames, l.frames.dropFirst()) {
             let gap = b.origin.x - (a.origin.x + a.size.width)
-            let equal = gap == CharacterSelectLayout.gap      // compared outside #expect: the macro reports 16.0 == 16.0 as failed for CGFloat here
-            #expect(equal)
+            // Swift Testing quirk (2026-09-09, Swift 6.3.3): `#expect(a == b)` on two CGFloats fails inside a loop body in a
+            // Foundation-only test file, with identical bit patterns; the same values compared as Double pass. Keep the cast.
+            #expect(Double(gap) == Double(CharacterSelectLayout.gap))
             #expect(a.origin.y == b.origin.y)
         }
         for f in l.frames {

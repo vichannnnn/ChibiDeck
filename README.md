@@ -92,7 +92,7 @@ All settings are `UserDefaults` under the bundle id; change them with `defaults 
 
 | Key | Default | Meaning |
 |---|---|---|
-| `themeId` | `midnight-witch` | Current mascot and colour theme (tapping the mascot changes it too). |
+| `themeId` | `midnight-witch` | Current mascot and colour theme (tapping the mascot cycles it; holding the mascot opens the character select). |
 | `quickReplies` | `go,yes,no` | Comma-separated answers offered when a session is waiting without numbered options. |
 | `autoDimEnabled`, `autoDimMinutes` | `false`, `10` | Dim the panel after that many minutes without a touch or a state change. |
 | `sheetTimeoutSeconds` | `30` | The detail sheet closes itself after this long. |

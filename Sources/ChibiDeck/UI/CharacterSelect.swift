@@ -8,11 +8,12 @@ struct CharacterSelect: View {
     @Environment(\.palette) private var palette
 
     var body: some View {
-        let entries = model.themes.compactMap { theme in model.mascots[theme.mascot].map { (theme: theme, mascot: $0) } }
+        let entries = model.themes.map { theme in (theme: theme, mascot: model.mascot(for: theme)) }
         let layout = CharacterSelectLayout(count: entries.count)
         ZStack(alignment: .topLeading) {
-            Text("Choose your character").sectionLabel(palette).font(PanelType.mono(24, .bold))
-                .frame(width: 2560, alignment: .leading).padding(.leading, 64).position(x: 1280 + 32, y: 48)
+            Text("Choose your character").font(PanelType.mono(24, .bold)).foregroundStyle(palette.muted).textCase(.uppercase).tracking(1.5)
+                .frame(width: 2432, alignment: .leading).position(x: 1280, y: 48)      // left edge at x 64, centred on y 48
+                .allowsHitTesting(false)                                                 // a click on the label falls through to the backdrop
             ForEach(Array(zip(entries, layout.frames)), id: \.0.theme.id) { entry, frame in
                 tile(entry.theme, entry.mascot, scale: layout.scale, current: entry.theme.id == model.currentTheme.id)
                     .frame(width: frame.width, height: frame.height)
@@ -20,6 +21,7 @@ struct CharacterSelect: View {
             }
             Text("tap a character to choose · tap outside to close").font(PanelType.mono(17)).foregroundStyle(palette.muted)
                 .position(x: 1280, y: 640)
+                .allowsHitTesting(false)
         }
         .frame(width: 2560, height: 720)
     }

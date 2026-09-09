@@ -56,8 +56,11 @@ final class AppModel {
         themes.first { $0.id == settings.themeId } ?? themes.first { $0.id == ThemeLibrary.defaultThemeId } ?? themes[0]
     }
 
-    var currentMascot: Mascot {
-        let theme = currentTheme
+    var currentMascot: Mascot { mascot(for: currentTheme) }
+
+    /// The theme's mascot, or the fallback when the id is unknown; the character select uses it too, so a tile is
+    /// never dropped and the marked tile agrees with the left column (review 2026-09-09).
+    func mascot(for theme: Theme) -> Mascot {
         if let mascot = mascots[theme.mascot] { return mascot }
         panelLog.error("theme \(theme.id) references unknown mascot \(theme.mascot)")
         return fallbackMascot
