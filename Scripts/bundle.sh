@@ -1,12 +1,12 @@
 #!/bin/bash
 # Builds, assembles and signs "build/Chibi Deck.app" (spec 2026-09-07 Plan 3 §10.2).
-#   IDENTITY="Apple Development: …" VERSION=1.1.0 Scripts/bundle.sh
+#   IDENTITY="Apple Development: …" VERSION=1.1.1 Scripts/bundle.sh
 #   Also writes build/ChibiDeck-<version>.zip, the file to attach to a GitHub release.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 IDENTITY="${IDENTITY:--}"          # ad-hoc unless set; `security find-identity -v -p codesigning` lists yours
-VERSION="${VERSION:-1.1.0}"
+VERSION="${VERSION:-1.1.1}"
 BUILD_NUMBER=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 APP="build/Chibi Deck.app"          # the bundle carries the display name; the executable inside stays ChibiDeck
 RESOURCE_BUNDLE=ChibiDeck_PanelCore.bundle
