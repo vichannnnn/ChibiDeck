@@ -7,7 +7,8 @@ private let handoffLog = Logger(subsystem: "me.himaa.chibideck", category: "hand
 
 /// Handoff §4, §6: one live sequence per pid. While any sequence is active a 2 s timer reads the pid's
 /// `sessions/<pid>.json` (the clear signal is its session id changing) and, until the reply is captured, the
-/// original session's transcript; each look goes to the pure `HandoffSequencer`, whose commands are carried out
+/// original session's transcript (the `/handoff` record, the fenced reply and the turn end after it, review
+/// 2026-09-10); each look goes to the pure `HandoffSequencer`, whose commands are carried out
 /// through the bridge. Every phase change is a toast. Types nothing but `/handoff`, `/clear` and the block.
 /// A block captured and then lost to a Terminal error is written under the app's own Application Support folder.
 @MainActor @Observable
@@ -79,6 +80,9 @@ final class HandoffRunner {
             let observation = await observe(pid: pid, session: entry.session, needsTranscript: entry.sequencer.phase == .requested)
             let command = entry.sequencer.observe(observation, now: Date())
             live[pid] = entry
+            if entry.sequencer.phase == .requested {                          // review 2026-09-10: queued until the turn ends
+                stages[pid] = entry.sequencer.landed ? .awaitingReply : .queued
+            }
             if let command { await carryOut(command, pid: pid) }
             if live[pid]?.sequencer.isActive != true { stages[pid] = nil }      // Handoff indicator §A: done or failed
         }
@@ -98,14 +102,19 @@ final class HandoffRunner {
         let record = Self.sessionRecord(pid: pid)
         var reply: String?
         var replyAt: Date?
+        var requestedAt: Date?
+        var turnEnded = false
         if needsTranscript, record?.sessionId == session.sessionId {           // only the original transcript can carry the reply
             let url = transcriptURL(for: session)
             let summary = await Task.detached(priority: .utility) { Self.readReply(url: url) }.value
             reply = summary?.handoffReply
             replyAt = summary?.handoffReplyAt
+            requestedAt = summary?.handoffRequestedAt
+            turnEnded = summary?.handoffTurnEnded ?? false
         }
         return HandoffSequencer.Observation(pidAlive: alive, sessionId: record?.sessionId, status: record?.status,
-                                            handoffReply: reply, handoffReplyAt: replyAt)
+                                            handoffReply: reply, handoffReplyAt: replyAt,
+                                            handoffRequestedAt: requestedAt, handoffTurnEnded: turnEnded)
     }
 
     /// The cheap 512 KiB tail first; when it holds no `/handoff` record at all (the skill's tool results can run to

@@ -13,9 +13,16 @@ public struct TranscriptSummary: Sendable, Equatable {
     public var handoffReplyAt: Date?
     /// Whether a `/handoff` command record was inside the chunk at all: false tells the reader to look further back.
     public var handoffRequested: Bool
+    /// Review 2026-09-10: the timestamp of that last `/handoff` record. Typed into a busy session the command is
+    /// queued and only runs when the turn ends, so this, not the keystroke, starts the reply clock.
+    public var handoffRequestedAt: Date?
+    /// Review 2026-09-10: a `turn_duration` system record was written after the reply, i.e. the turn that produced
+    /// the block is over. The session file cannot say so: it reports `busy` while any background agent is alive.
+    public var handoffTurnEnded: Bool
 
     public init(lastUserPrompt: String?, lastAssistantText: String?, modelId: String?, contextTokens: Int?, lastActivity: Date?,
-                pending: PendingInput? = nil, handoffReply: String? = nil, handoffReplyAt: Date? = nil, handoffRequested: Bool = false) {
+                pending: PendingInput? = nil, handoffReply: String? = nil, handoffReplyAt: Date? = nil, handoffRequested: Bool = false,
+                handoffRequestedAt: Date? = nil, handoffTurnEnded: Bool = false) {
         self.lastUserPrompt = lastUserPrompt
         self.lastAssistantText = lastAssistantText
         self.modelId = modelId
@@ -25,6 +32,8 @@ public struct TranscriptSummary: Sendable, Equatable {
         self.handoffReply = handoffReply
         self.handoffReplyAt = handoffReplyAt
         self.handoffRequested = handoffRequested
+        self.handoffRequestedAt = handoffRequestedAt
+        self.handoffTurnEnded = handoffTurnEnded
     }
 }
 
@@ -32,6 +41,8 @@ public enum TranscriptTail {
     public static let defaultMaxBytes = 512 * 1024
     /// Handoff §4: what the transcript's `user` record carries when `/handoff` is typed.
     public static let handoffMarker = "<command-name>/handoff</command-name>"
+    /// Review 2026-09-10: the `system` record Claude Code writes when a turn ends (seen in 2.1.263 and 2.1.266).
+    public static let turnEndSubtype = "turn_duration"
 
     /// Plan 3 §9.1 step sizes: 4 MiB, then 32 MiB.
     public static let promptSteps = [4 * 1024 * 1024, 32 * 1024 * 1024]
@@ -85,8 +96,10 @@ public enum TranscriptTail {
                 if rawText(message?["content"])?.contains(handoffMarker) == true {   // Handoff §4: a new request voids an older reply
                     sawHandoff = true
                     summary.handoffRequested = true
+                    summary.handoffRequestedAt = (o["timestamp"] as? String).flatMap(ISO8601.parse)
                     summary.handoffReply = nil
                     summary.handoffReplyAt = nil
+                    summary.handoffTurnEnded = false
                 }
                 if (o["isMeta"] as? Bool) == true { continue }
                 if let text = userText(message?["content"]) {
@@ -103,6 +116,7 @@ public enum TranscriptTail {
                     if sawHandoff, (o["isApiErrorMessage"] as? Bool) != true, HandoffReply.block(in: text) != nil {
                         summary.handoffReply = text
                         summary.handoffReplyAt = (o["timestamp"] as? String).flatMap(ISO8601.parse)
+                        summary.handoffTurnEnded = false
                     }
                 }
                 if let usage = message?["usage"] as? [String: Any] {
@@ -111,6 +125,10 @@ public enum TranscriptTail {
                     let cacheCreate = (usage["cache_creation_input_tokens"] as? Int) ?? 0
                     summary.contextTokens = input + cacheRead + cacheCreate
                     summary.modelId = (message?["model"] as? String) ?? summary.modelId
+                }
+            case "system":
+                if (o["subtype"] as? String) == turnEndSubtype, summary.handoffReply != nil {   // review 2026-09-10
+                    summary.handoffTurnEnded = true
                 }
             default:
                 continue

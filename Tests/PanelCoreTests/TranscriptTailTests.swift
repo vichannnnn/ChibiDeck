@@ -192,4 +192,25 @@ import Testing
         #expect(running.lastAssistantText == "old reply")
         #expect(running.pending == nil)                                    // the tool result closed the dialog
     }
+
+    @Test func handoffRequestedAtIsTheCommandRecordsTimestamp() {
+        let s = TranscriptTail.parse(chunk: Self.handoffLines.joined(separator: "\n") + "\n", dropFirstLine: false)
+        #expect(s.handoffRequestedAt == ISO8601.parse("2026-09-08T08:00:01Z"))
+        let before = TranscriptTail.parse(chunk: Self.handoffLines[0] + "\n", dropFirstLine: false)
+        #expect(before.handoffRequestedAt == nil)
+    }
+
+    /// Review 2026-09-10: the session file says `busy` between turns while background agents run, so the turn end is
+    /// read from the transcript: a `turn_duration` system record written after the reply.
+    @Test func handoffTurnEndedOnlyWhenATurnDurationRecordFollowsTheReply() {
+        let turnEnd = #"{"type":"system","subtype":"turn_duration","durationMs":4000,"messageCount":6,"timestamp":"2026-09-08T08:00:06Z"}"#
+        let open = TranscriptTail.parse(chunk: Self.handoffLines.joined(separator: "\n") + "\n", dropFirstLine: false)
+        #expect(open.handoffReply != nil && !open.handoffTurnEnded)
+        let closed = TranscriptTail.parse(chunk: Self.handoffLines.joined(separator: "\n") + "\n" + turnEnd + "\n", dropFirstLine: false)
+        #expect(closed.handoffTurnEnded)
+        let earlier = TranscriptTail.parse(chunk: Self.handoffLines[0..<5].joined(separator: "\n") + "\n" + turnEnd + "\n" + Self.handoffLines[5] + "\n", dropFirstLine: false)
+        #expect(earlier.handoffReply != nil && !earlier.handoffTurnEnded)   // a turn that ended before the block does not count
+        let again = TranscriptTail.parse(chunk: Self.handoffLines.joined(separator: "\n") + "\n" + turnEnd + "\n" + Self.handoffLines[1] + "\n", dropFirstLine: false)
+        #expect(!again.handoffTurnEnded && again.handoffRequestedAt == ISO8601.parse("2026-09-08T08:00:01Z"))   // a new request resets it
+    }
 }

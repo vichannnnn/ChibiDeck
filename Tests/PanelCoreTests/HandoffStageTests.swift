@@ -6,6 +6,7 @@ import Testing
     @Test func labelsNameTheStepTheCardIsWaitingOn() {
         #expect(HandoffStage.requesting.label == "· reply")
         #expect(HandoffStage.awaitingReply.label == "· reply")
+        #expect(HandoffStage.queued.label == "· queued")
         #expect(HandoffStage.clearing.label == "· clear")
         #expect(HandoffStage.pasting.label == "· paste")
     }

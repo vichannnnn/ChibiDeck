@@ -5,6 +5,8 @@ import Foundation
 public enum HandoffStage: Equatable, Sendable {
     /// `/handoff` is being typed.
     case requesting
+    /// Review 2026-09-10: `/handoff` typed into a busy session sits in Claude Code's queue until the turn ends.
+    case queued
     /// `/handoff` landed; waiting for the skill's reply in the transcript.
     case awaitingReply
     /// `/clear` typed; waiting for the session file to carry a new session id.
@@ -16,6 +18,7 @@ public enum HandoffStage: Equatable, Sendable {
     public var label: String {
         switch self {
         case .requesting, .awaitingReply: "· reply"
+        case .queued: "· queued"
         case .clearing: "· clear"
         case .pasting: "· paste"
         }
