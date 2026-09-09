@@ -28,16 +28,31 @@ import Testing
         #expect(Self.run(Self.events(dy: 1500))?.direction == .down)
     }
 
-    @Test func thresholdIsEightyPoints() {
-        #expect(SwipeRecognizer.minRawTravel == 1066)
-        #expect(Self.run(Self.events(dy: -1000)) == nil)
-        #expect(Self.run(Self.events(dy: -1066))?.direction == .up)
+    @Test func thresholdIsEightyPointsOfTheStripHeight() {
+        #expect(Self.run(Self.events(dy: -1000)) == nil)                // 75 pt
+        #expect(Self.run(Self.events(dy: -1067))?.direction == .up)     // 80.03 pt
     }
 
     @Test func diagonalAndSlowMovesAreNotSwipes() {
-        #expect(Self.run(Self.events(dy: -1500, dx: 900)) == nil)      // less than twice as tall as wide
-        #expect(Self.run(Self.events(dy: -1500, dx: 700))?.direction == .up)
+        // 1500 raw tall = 112 pt; the raw x axis is coarser (6.4 raw/pt): 900 raw = 141 pt wide, 350 raw = 55 pt.
+        #expect(Self.run(Self.events(dy: -1500, dx: 900)) == nil)
+        #expect(Self.run(Self.events(dy: -1500, dx: 700)) == nil)       // 109 pt wide: less than twice as tall as wide
+        #expect(Self.run(Self.events(dy: -1500, dx: 350))?.direction == .up)
         #expect(Self.run(Self.events(dy: -1500, duration: 1.2)) == nil)
+    }
+
+    @Test func theRuleInPointsServesTheMousePath() {
+        #expect(SwipeRecognizer.classify(dx: 10, dy: -80, duration: 0.3) == .up)
+        #expect(SwipeRecognizer.classify(dx: 10, dy: 79, duration: 0.3) == nil)
+        #expect(SwipeRecognizer.classify(dx: 50, dy: 90, duration: 0.3) == nil)
+        #expect(SwipeRecognizer.classify(dx: 0, dy: 300, duration: 1.01) == nil)
+    }
+
+    @Test func outAndBackIsNotASwipe() {
+        let r = SwipeRecognizer()
+        #expect(r.handle(TouchEvent(kind: .down, rawX: 8000, rawY: 5000, time: 1)) == nil)
+        #expect(r.handle(TouchEvent(kind: .move, rawX: 8000, rawY: 2000, time: 1.2)) == nil)
+        #expect(r.handle(TouchEvent(kind: .up, rawX: 8000, rawY: 5100, time: 1.4)) == nil)
     }
 
     @Test func tapAndLongPressStaySilentOnASwipe() {
@@ -66,6 +81,10 @@ import Testing
         #expect(SwipePaging.target(for: .up, over: .sheetAnswer(0)) == .sheetPageDown)
         #expect(SwipePaging.target(for: .down, over: .sheetPageDown) == .sheetPageUp)
         #expect(SwipePaging.target(for: .up, over: .sheetHandoff) == .sheetPageDown)
+        for pill in [TouchTarget.sheetBack, .sheetFocus, .sheetDismiss, .sheetHide, .sheetPageUp] {
+            #expect(SwipePaging.target(for: .up, over: pill) == .sheetPageDown)
+            #expect(SwipePaging.target(for: .down, over: pill) == .sheetPageUp)
+        }
     }
 
     @Test func swipesElsewhereDoNothing() {

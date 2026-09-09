@@ -20,13 +20,4 @@ public enum HandoffStage: Equatable, Sendable {
         case .pasting: "· paste"
         }
     }
-
-    /// The sequencer's live phases; `done` and `failed` have no stage.
-    public init?(phase: HandoffSequencer.Phase) {
-        switch phase {
-        case .requested: self = .awaitingReply
-        case .clearing: self = .clearing
-        case .done, .failed: return nil
-        }
-    }
 }

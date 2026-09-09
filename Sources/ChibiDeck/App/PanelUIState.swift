@@ -10,6 +10,8 @@ final class PanelUIState {
     var toast: String?
     /// Plan 4 §6.1: which page of the Claude text the sheet shows; a fresh sheet starts at the first.
     var sheetPage = 0
+    /// Sheet swipe §B: the sheet publishes its page count so a swipe past the last page has nothing to overshoot into.
+    var sheetPageCount = 1
     /// Plan 6 §5: the card whose menu is open, and when it opened (the 6 s auto-close counts from here).
     var menuSessionId: String?
     var menuOpenedAt: Date?

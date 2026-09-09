@@ -59,6 +59,7 @@ struct DetailSheet: View {
                             .frame(width: Self.pillColumn)
                         }
                         .onChange(of: pages.count, initial: true) { _, count in
+                            model.ui.sheetPageCount = count
                             model.ui.sheetPage = min(model.ui.sheetPage, count - 1)      // Plan 4 §6.1: the stored index is clamped when the text changes
                         }
                     }
@@ -126,19 +127,24 @@ struct DetailSheet: View {
         .simultaneousGesture(TapGesture().onEnded { model.perform(.sheetBackdrop) })
         .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { drag in        // Sheet swipe §B: the mouse path, same rule in points
             let t = drag.translation
-            if let direction = SwipeRecognizer.classify(dx: Int(t.width), dy: Int(t.height), duration: drag.time.timeIntervalSince(dragStart ?? drag.time),
-                                                         minTravel: Int(SwipeRecognizer.minTravelPoints)),
+            // The clock starts at the first sample past 20 pt, so the mouse's second is a little generous; fine.
+            if let direction = SwipeRecognizer.classify(dx: t.width, dy: t.height, duration: drag.time.timeIntervalSince(dragStart ?? drag.time)),
                let action = SwipePaging.target(for: direction, over: .sheetBackdrop) {
                 model.perform(action)
             }
             dragStart = nil
-        }.onChanged { drag in if dragStart == nil { dragStart = drag.time } })
+        }.onChanged { drag in
+            // A cancelled drag never reaches onEnded; a start older than 3 s belongs to one and is replaced.
+            if let began = dragStart, drag.time.timeIntervalSince(began) <= 3 { return }
+            dragStart = drag.time
+        })
         .touchTarget(.sheetBackdrop, z: 1)
         .transition(.move(edge: .trailing).combined(with: .opacity))
     }
 
     private var canAnswer: Bool { ActionAvailability.canAnswer(session, actionsAvailable: model.actions.isAvailable) }
-    private var answers: [Answer] { canAnswer ? model.answers(for: session) : [] }
+    /// Handoff indicator §A: no quick replies mid-handoff; a waiting session still gets its prompt's answers (Handoff §4).
+    private var answers: [Answer] { canAnswer && (model.handoffStage(for: session) == nil || session.status == .waiting) ? model.answers(for: session) : [] }
 
     private func pendingLine(_ pending: PendingInput) -> String {
         switch pending {

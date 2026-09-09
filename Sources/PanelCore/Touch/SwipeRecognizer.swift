@@ -13,15 +13,14 @@ public struct Swipe: Sendable, Equatable {
 }
 
 /// Sheet swipe §B: down, moves, up within a second, travelling at least 80 pt vertically and at least twice as far
-/// vertically as horizontally. A tap (≤ 24 pt) and a long press (which forgets on movement) never fire on the same
+/// vertically as horizontally, measured in canvas points (the Edge's raw axes have different scales: 13.3 raw/pt
+/// tall, 6.4 raw/pt wide). A tap (≤ 24 pt) and a long press (which forgets on movement) never fire on the same
 /// events, so the three recognisers can share one stream.
 public final class SwipeRecognizer {
     public static let maxDuration: TimeInterval = 1.0
-    /// 80 pt of the strip's 720 pt height, in the Edge's raw units.
     public static let minTravelPoints = 80.0
-    public static let minRawTravel = Int(minTravelPoints / 720.0 * Double(XeneonEdgeDevice.rawYMax))   // 1066
     /// Vertical travel must be at least this many times the horizontal travel.
-    public static let dominance = 2
+    public static let dominance = 2.0
 
     private var downEvent: TouchEvent?
 
@@ -37,14 +36,16 @@ public final class SwipeRecognizer {
         case .up:
             defer { downEvent = nil }
             guard let down = downEvent else { return nil }
-            return Self.classify(dx: event.rawX - down.rawX, dy: event.rawY - down.rawY, duration: event.time - down.time)
+            let dx = Double(event.rawX - down.rawX) * 2560.0 / Double(XeneonEdgeDevice.rawXMax)
+            let dy = Double(event.rawY - down.rawY) * 720.0 / Double(XeneonEdgeDevice.rawYMax)
+            return Self.classify(dx: dx, dy: dy, duration: event.time - down.time)
                 .map { Swipe(direction: $0, rawX: down.rawX, rawY: down.rawY, time: event.time) }
         }
     }
 
-    /// The rule alone, so the mouse path can apply it in points: `dy` negative is towards the top.
-    public static func classify(dx: Int, dy: Int, duration: TimeInterval, minTravel: Int = minRawTravel) -> Swipe.Direction? {
-        guard duration <= maxDuration, abs(dy) >= minTravel, abs(dy) >= dominance * abs(dx) else { return nil }
+    /// The rule alone, in points, so the mouse path applies it to a drag's translation: `dy` negative is towards the top.
+    public static func classify(dx: Double, dy: Double, duration: TimeInterval) -> Swipe.Direction? {
+        guard duration <= maxDuration, abs(dy) >= minTravelPoints, abs(dy) >= dominance * abs(dx) else { return nil }
         return dy < 0 ? .up : .down
     }
 }

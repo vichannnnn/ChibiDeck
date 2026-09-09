@@ -180,7 +180,7 @@ final class AppModel {
             ui.sheetPage = max(0, ui.sheetPage - 1)
             ui.sheetOpenedAt = Date()                          // reading counts as using the sheet
         case .sheetPageDown:
-            ui.sheetPage += 1                                  // the sheet clamps to its page count
+            ui.sheetPage = min(ui.sheetPage + 1, max(ui.sheetPageCount - 1, 0))   // Sheet swipe §B: no overshoot past the last page
             ui.sheetOpenedAt = Date()
         case .cardAnswer(let id):
             guard ui.menuSessionId == nil else { return }               // Plan 6 §5: a long press on the pill opened the menu; its release types nothing

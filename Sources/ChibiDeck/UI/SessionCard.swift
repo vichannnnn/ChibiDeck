@@ -29,7 +29,7 @@ struct SessionCard: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .center, spacing: 10) {
-                    if let stage = handoffStage {                                     // Handoff indicator §A
+                    if let stage = handoffStage, session.status != .waiting {        // Handoff indicator §A; a waiting session keeps its row (Handoff §4: the user answers the prompt)
                         Circle().fill(palette.accent).frame(width: 12, height: 12)
                         Text("HANDOFF").font(PanelType.mono(20, .bold)).foregroundStyle(palette.accent)
                         Text(stage.label).font(PanelType.mono(17)).foregroundStyle(palette.accent).lineLimit(1)
@@ -66,7 +66,7 @@ struct SessionCard: View {
                         Chip(text: effort)                                    // Plan 4 §5.1: the session's effort level
                     }
                     Spacer(minLength: 0)
-                    if let pill = cardPill, handoffStage == nil {                       // Handoff indicator §A: no answers mid-handoff
+                    if let pill = cardPill, handoffStage == nil || session.status == .waiting {   // Handoff indicator §A: no quick replies mid-handoff; a prompt's Allow stays
                         Button(action: { model.perform(pill.opensSheet ? .card(session.sessionId) : .cardAnswer(session.sessionId)) }) {
                             // Plan 4 §5.3: theme accent, 2 pt lower than the chip row; the 6 pt pad keeps the touch region ≈ 43 pt tall.
                             Text(pill.label).font(PanelType.mono(18, .bold)).lineLimit(1).padding(.horizontal, 16).padding(.vertical, 8)
@@ -86,7 +86,7 @@ struct SessionCard: View {
             .foregroundStyle(isDim ? palette.muted : palette.text)
             .background(palette.card)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(borderColor, lineWidth: attention ? 3 : 2))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(borderColor, lineWidth: handoffStage != nil ? 2 : attention ? 3 : 2))
             .shadow(color: attention && session.status == .waiting ? ThemePalette.waiting.opacity(0.3) : .clear, radius: 24)
         }
         .buttonStyle(.plain)

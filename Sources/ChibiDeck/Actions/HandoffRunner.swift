@@ -27,8 +27,8 @@ final class HandoffRunner {
     /// Pids whose `/handoff` is being typed right now: reserved before the await so a double tap types it once
     /// (review 2026-09-08).
     private var starting: Set<Int> = []
-    private var timer: Timer?
-    private var tickInFlight = false
+    @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var tickInFlight = false
 
     init(actions: PanelActions, ui: PanelUIState) {
         self.actions = actions
@@ -84,7 +84,6 @@ final class HandoffRunner {
         }
         if live.values.allSatisfy({ !$0.sequencer.isActive }) {
             live.removeAll()
-            stages = stages.filter { starting.contains($0.key) }
             timer?.invalidate()
             timer = nil
         }
