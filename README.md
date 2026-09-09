@@ -25,7 +25,7 @@ Touch (or the mouse in the preview window):
 - **Tap the answer pill** types that answer into the session's Terminal tab. Numbered options come from the question Claude asked; otherwise your quick replies (`go`, `yes`, `no` by default).
 - **Hold a card for half a second** opens the card menu: Focus tab · Handoff · Dismiss · Hide.
 - **Handoff** (card menu or the sheet) makes the session write a handoff prompt with the `/handoff` skill, clears the session with `/clear`, and pastes the prompt back into the same tab, so you come back to a fresh session that already knows where it was. Toasts report each step; the tab must be idle or busy, not waiting on a question.
-- **Tap the mascot** switches to the next character and colour theme.
+- **Tap the mascot** switches to the next character and colour theme. **Hold it** for the character-select screen: every character on its own colours, the current one marked; tap one to pick it, tap outside (or wait ten seconds) to close.
 
 ## Compatibility
 
@@ -106,7 +106,7 @@ Logs go to the unified log: `/usr/bin/log stream --predicate 'subsystem == "me.h
 
 ## Mascots and themes
 
-Each character comes with its own colour theme, and tapping the mascot cycles through them. The sprites are 68×67 pixels in at most 16 colours, two animations of eight frames at 4 fps: the hair-wave loop, and the "needs you" hop with sparkles. They are generated, not hand-edited: `Scripts/mascots/build.py` composes each character from a shared body, a donor hair cut, hand-drawn accessory grids and a colour table. `Scripts/mascots/README.md` explains how to add one, and the `chibi-creation` skill walks a Claude Code session through it.
+Each character comes with its own colour theme; tapping the mascot cycles through them, and holding it opens the character-select screen. The sprites are 68×67 pixels in at most 16 colours, two animations of eight frames at 4 fps: the hair-wave loop, and the "needs you" hop with sparkles. They are generated, not hand-edited: `Scripts/mascots/build.py` composes each character from a shared body, a donor hair cut, hand-drawn accessory grids and a colour table. `Scripts/mascots/README.md` explains how to add one, and the `chibi-creation` skill walks a Claude Code session through it.
 
 ![The nine mascots on their theme backgrounds](docs/images/roster.png)
 
