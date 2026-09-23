@@ -47,6 +47,7 @@ final class PanelController {
             startTouch()
         } else {
             panel?.orderOut(nil)
+            panel = nil                                          // spec 2026-09-23 §4.2: no SwiftUI content off screen
             stopTouch()
             // Automatic, so it must not steal the keyboard: an Edge unplug can land mid-keystroke in Terminal.
             if preview == nil { preview = PreviewWindowController(model: model) }

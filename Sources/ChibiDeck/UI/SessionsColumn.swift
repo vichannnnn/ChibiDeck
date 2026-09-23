@@ -4,6 +4,7 @@ import PanelCore
 /// Spec 2026-09-07 §2.4: the 1640 px right column — `SESSIONS` header with count chips, then the 4×2 card grid.
 struct SessionsColumn: View {
     @Environment(\.palette) private var palette
+    @Environment(AppModel.self) private var model
     let state: PanelState
     let onTap: (Session) -> Void
 
@@ -27,7 +28,7 @@ struct SessionsColumn: View {
             .padding(.top, 20)
             LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                 ForEach(state.sessions) { session in
-                    SessionCard(session: session, detail: state.detail(for: session.sessionId), now: state.now, dismissed: state.dismissed) { onTap(session) }
+                    SessionCard(input: cardInput(session)) { onTap(session) }.equatable()
                 }
             }
             .padding(.top, 16)
@@ -40,5 +41,12 @@ struct SessionsColumn: View {
     private func chipColor(_ item: (label: String, status: SessionStatus)) -> Color {
         if item.label.hasPrefix("+") || item.status == .idle || item.status == .unknown { return palette.muted }
         return ThemePalette.status(item.status)
+    }
+
+    /// Spec 2026-09-23 §4.2: the values one card draws, read here so the card's body observes nothing.
+    private func cardInput(_ session: Session) -> CardInput {
+        CardInput(session: session, detail: state.detail(for: session.sessionId), now: state.now,
+                  attention: session.status.needsAttention && !AttentionResolver.isDismissed(session, dismissed: state.dismissed),
+                  pill: model.cardPill(for: session), handoffStage: model.handoffStage(for: session))
     }
 }

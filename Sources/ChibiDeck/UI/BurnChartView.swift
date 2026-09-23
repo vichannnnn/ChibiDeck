@@ -5,11 +5,13 @@ import PanelCore
 /// hour in `text`, empty hours as 2 px stubs, a dashed mean line) and clock labels under every fourth hour with `now`
 /// under the last bar. `indexing…` before the first pass, `no transcripts` when there is nothing to index, `~stale`
 /// when the charted pass is older than five minutes.
-struct BurnChartView: View {
+struct BurnChartView: View, Equatable {
     @Environment(\.palette) private var palette
     let burn: BurnSummary?
     let chart: BurnChart?
     let stale: Bool
+
+    static func == (a: BurnChartView, b: BurnChartView) -> Bool { a.burn == b.burn && a.chart == b.chart && a.stale == b.stale }
 
     private let gutter: CGFloat = 64
     private let axisHeight: CGFloat = 22

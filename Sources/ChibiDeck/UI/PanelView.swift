@@ -12,7 +12,7 @@ struct PanelView: View {
         let state = model.collector.state
         let palette = ThemePalette(theme: model.currentTheme)
         HStack(spacing: 0) {
-            LeftColumn(state: state)
+            LeftColumn(now: state.now, isStale: state.isStale, pose: state.mascotPose).equatable()
             HStack(spacing: 0) {
                 LimitsColumn(state: state)
                 ZStack(alignment: .topLeading) {

@@ -1,35 +1,41 @@
 import SwiftUI
 import PanelCore
 
+/// Spec 2026-09-23 §4.2: everything one card draws, compared by value, so a card redraws only when its own session,
+/// detail, pill or handoff stage changes. `SessionsColumn` builds it; the card reads nothing from `AppModel` in `body`.
+struct CardInput: Equatable {
+    let session: Session
+    let detail: SessionDetail
+    let now: Date
+    /// Waiting or blocked, and not dismissed (spec 2026-09-06 §6.3).
+    let attention: Bool
+    let pill: AnswerResolver.CardPill?
+    let handoffStage: HandoffStage?
+}
+
 /// Spec 2026-09-07 §2.4 and Plan 4 §5: one 388×300 card. Rows: status + elapsed, name, repo@branch, `you:`, `claude:`, tasks,
 /// context bar with its label, model and effort chips and the answer pill. Waiting cards get the yellow border and glow, blocked cards
 /// the red border, unless dismissed. Handoff indicator §A: a card with a running handoff shows `HANDOFF · reply/clear/paste`
 /// in the accent with an accent border and no answer pill.
 /// Plan 6 §3: a half-second press opens the card menu.
-struct SessionCard: View {
+struct SessionCard: View, Equatable {
     @Environment(\.palette) private var palette
     @Environment(AppModel.self) private var model
-    let session: Session
-    let detail: SessionDetail
-    let now: Date
-    let dismissed: Set<DismissKey>
+    let input: CardInput
     let onTap: () -> Void
 
+    static func == (a: SessionCard, b: SessionCard) -> Bool { a.input == b.input }
+
+    private var session: Session { input.session }
+    private var detail: SessionDetail { input.detail }
     private var statusColor: Color { ThemePalette.status(session.status) }
     private var isDim: Bool { session.status == .idle || session.status == .unknown }
-    /// Spec 2026-09-06 §6.3: an acknowledged session keeps its status colour but loses the glow and the attention border.
-    private var attention: Bool { session.status.needsAttention && !AttentionResolver.isDismissed(session, dismissed: dismissed) }
-
-    /// Plan 4 §5.3: `Allow ↵`, `N opts ›` or the first quick reply, only while an answer could be typed.
-    private var cardPill: AnswerResolver.CardPill? { model.cardPill(for: session) }
-    /// Handoff indicator §A: set from the tap until the paste lands or the sequence fails.
-    private var handoffStage: HandoffStage? { model.handoffStage(for: session) }
 
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .center, spacing: 10) {
-                    if let stage = handoffStage, session.status != .waiting {        // Handoff indicator §A; a waiting session keeps its row (Handoff §4: the user answers the prompt)
+                    if let stage = input.handoffStage, session.status != .waiting {   // Handoff indicator §A; a waiting session keeps its row (Handoff §4)
                         Circle().fill(palette.accent).frame(width: 12, height: 12)
                         Text("HANDOFF").font(PanelType.mono(20, .bold)).foregroundStyle(palette.accent)
                         Text(stage.label).font(PanelType.mono(17)).foregroundStyle(palette.accent).lineLimit(1)
@@ -41,7 +47,7 @@ struct SessionCard: View {
                         }
                     }
                     Spacer(minLength: 8)
-                    Text(PanelFormat.elapsedShort(session.elapsed(at: now))).font(PanelType.mono(17)).foregroundStyle(palette.muted)
+                    Text(PanelFormat.elapsedShort(session.elapsed(at: input.now))).font(PanelType.mono(17)).foregroundStyle(palette.muted)
                 }
                 .frame(height: 26)
                 Text(session.name).font(PanelType.mono(26, .bold)).lineLimit(1).truncationMode(.tail).padding(.top, 6)
@@ -66,7 +72,7 @@ struct SessionCard: View {
                         Chip(text: effort)                                    // Plan 4 §5.1: the session's effort level
                     }
                     Spacer(minLength: 0)
-                    if let pill = cardPill, handoffStage == nil || session.status == .waiting {   // Handoff indicator §A: no quick replies mid-handoff; a prompt's Allow stays
+                    if let pill = input.pill, input.handoffStage == nil || session.status == .waiting {   // Handoff indicator §A: no quick replies mid-handoff; a prompt's Allow stays
                         Button(action: { model.perform(pill.opensSheet ? .card(session.sessionId) : .cardAnswer(session.sessionId)) }) {
                             // Plan 4 §5.3: theme accent, 2 pt lower than the chip row; the 6 pt pad keeps the touch region ≈ 43 pt tall.
                             Text(pill.label).font(PanelType.mono(18, .bold)).lineLimit(1).padding(.horizontal, 16).padding(.vertical, 8)
@@ -86,8 +92,8 @@ struct SessionCard: View {
             .foregroundStyle(isDim ? palette.muted : palette.text)
             .background(palette.card)
             .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(borderColor, lineWidth: handoffStage != nil ? 2 : attention ? 3 : 2))
-            .shadow(color: attention && session.status == .waiting ? ThemePalette.waiting.opacity(0.3) : .clear, radius: 24)
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(borderColor, lineWidth: input.handoffStage != nil ? 2 : input.attention ? 3 : 2))
+            .shadow(color: input.attention && session.status == .waiting ? ThemePalette.waiting.opacity(0.3) : .clear, radius: 24)
         }
         .buttonStyle(.plain)
         .simultaneousGesture(LongPressGesture(minimumDuration: LongPressRecognizer.minimumDuration)
@@ -127,10 +133,10 @@ struct SessionCard: View {
     }
 
     private var borderColor: Color {
-        if handoffStage != nil { return palette.accent }                               // Handoff indicator §A
+        if input.handoffStage != nil { return palette.accent }                         // Handoff indicator §A
         return switch session.status {
-        case .waiting where attention: ThemePalette.waiting
-        case .blocked where attention: ThemePalette.blocked
+        case .waiting where input.attention: ThemePalette.waiting
+        case .blocked where input.attention: ThemePalette.blocked
         default: palette.line
         }
     }

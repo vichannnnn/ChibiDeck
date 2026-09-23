@@ -3,14 +3,19 @@ import PanelCore
 
 /// Spec 2026-09-07 §2.2: character (tap = next theme; Character select §3: hold = the character select), clock, date.
 /// Plan 3 §7: up to two permission lines in blocked red under the `stale` slot (y 360 and 384), only while something is denied.
-struct LeftColumn: View {
+struct LeftColumn: View, Equatable {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
-    let state: PanelState
+    /// Spec 2026-09-23 §4.2: the column's own inputs; the mascot, permissions and dimming are observed from the model.
+    let now: Date
+    let isStale: Bool
+    let pose: MascotPose
+
+    static func == (a: LeftColumn, b: LeftColumn) -> Bool { a.now == b.now && a.isStale == b.isStale && a.pose == b.pose }
 
     var body: some View {
         VStack(spacing: 0) {
-            MascotView(mascot: model.currentMascot, pose: state.mascotPose, desaturated: state.isStale)
+            MascotView(mascot: model.currentMascot, pose: pose, desaturated: isStale)
                 .frame(width: 280, height: 280)
                 .contentShape(Rectangle())
                 .onTapGesture { model.perform(.mascot) }
@@ -18,7 +23,7 @@ struct LeftColumn: View {
                     .onEnded { _ in model.perform(.characterSelect) })       // Character select §3: the mouse path; the release click is ignored while the screen is open
                 .touchTarget(.mascot)
                 .padding(.top, 40)
-            Text(state.isStale ? "stale" : " ")
+            Text(isStale ? "stale" : " ")
                 .font(PanelType.mono(17)).foregroundStyle(palette.muted).frame(height: 24).padding(.top, 8)
             VStack(spacing: 0) {
                 ForEach(model.permissions.lines, id: \.self) { line in
@@ -27,7 +32,7 @@ struct LeftColumn: View {
             }
             .padding(.top, 8)
             Spacer(minLength: 0)
-            Text(PanelFormat.hhmm(state.now))
+            Text(PanelFormat.hhmm(now))
                 .font(PanelType.mono(model.ui.isDimmed ? 120 : 110, .heavy)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.7)
             Text(dateLine).font(PanelType.mono(24, .bold)).foregroundStyle(palette.muted).textCase(.uppercase).padding(.top, 12)
@@ -42,6 +47,6 @@ struct LeftColumn: View {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "EEE d MMM"
-        return f.string(from: state.now)
+        return f.string(from: now)
     }
 }

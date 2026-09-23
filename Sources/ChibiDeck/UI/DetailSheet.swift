@@ -110,8 +110,11 @@ struct DetailSheet: View {
                 pill("Dismiss", target: .sheetDismiss, background: palette.line, foreground: palette.text)
                 pill("Hide", target: .sheetHide, background: palette.line, foreground: palette.text)
                 Spacer()
-                Text("back to tiles in \(secondsLeft) s").font(PanelType.mono(20, .bold)).foregroundStyle(palette.muted).textCase(.uppercase).tracking(1.5)
-                    .padding(.top, 20)
+                TimelineView(.periodic(from: .now, by: 1)) { context in                 // spec 2026-09-23 §4.1
+                    Text("back to tiles in \(secondsLeft(at: context.date)) s").font(PanelType.mono(20, .bold)).foregroundStyle(palette.muted)
+                        .textCase(.uppercase).tracking(1.5)
+                }
+                .padding(.top, 20)
             }
             .padding(.top, 8)
         }
@@ -160,9 +163,9 @@ struct DetailSheet: View {
 
     private var canFocus: Bool { ActionAvailability.canFocus(session, actionsAvailable: model.actions.isAvailable) }
 
-    private var secondsLeft: Int {
+    private func secondsLeft(at date: Date) -> Int {
         guard let opened = model.ui.sheetOpenedAt else { return 0 }
-        return max(0, model.settings.sheetTimeoutSeconds - Int(now.timeIntervalSince(opened)))
+        return max(0, model.settings.sheetTimeoutSeconds - Int(date.timeIntervalSince(opened)))
     }
 
     /// `no transcript` only when neither the transcript nor the job file gave any text (spec §2.5).
