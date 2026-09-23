@@ -22,9 +22,13 @@ final class TouchDispatcher {
 
     init(model: AppModel) { self.model = model }
 
+    /// M2: `drags.handle` (and the `scroll` it feeds) must run before `recognizer.handle` (the tap) below — load-
+    /// bearing order. A down-and-back flick both ends a drag (a real release stamps `AppModel`'s 300 ms grace) and,
+    /// by net displacement, reads as a tap to `TapRecognizer`; only that grace stamp, applied first, stops
+    /// `model.perform` from also treating it as a card tap or an answer send.
     func handle(_ event: TouchEvent) {
         if event.kind == .down, draggingGrid {                     // spec 2026-09-23 §8.3: the previous drag's up was lost
-            model.endGridDrag(speed: 0)
+            model.cancelGridDrag()                                 // M2: no real release to guard — must not stamp the grace
             draggingGrid = false
         }
         if let drag = drags.handle(event) { scroll(drag) }
@@ -38,6 +42,18 @@ final class TouchDispatcher {
         touchLog.info("tap raw=(\(tap.rawX),\(tap.rawY)) canvas=(\(Int(point.x)),\(Int(point.y))) target=\(name, privacy: .public) regions=\(self.model.touchRegions.count)")
         model.ui.noteTouch()
         if let target { model.perform(target) }
+    }
+
+    /// M2: the Edge disconnecting mid-touch (`PanelController.stopTouch`) — there is no more move or up coming to
+    /// finish or rescue a drag, a long press or a swipe, so drop the pending long-press deadline and let go of a
+    /// grid drag without stamping the release grace (`AppModel.cancelGridDrag`); otherwise `gridDragStart` stays
+    /// set while the Edge is gone and the preview, mouse-driven in the meantime, ignores every card click.
+    func cancel() {
+        fireTask?.cancel()
+        fireTask = nil
+        longPress.reset()
+        if draggingGrid { model.cancelGridDrag() }
+        draggingGrid = false
     }
 
     /// Plan 6 §3: while the finger rests, `fire` runs at the recogniser's deadline; every newer event re-arms or clears it.

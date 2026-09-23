@@ -11,6 +11,10 @@ final class ScrollWheelMonitor {
     private let model: AppModel
     private var monitor: Any?
     private var settle: Task<Void, Never>?
+    /// M1: `addLocalMonitorForEvents` sees every window in the app, including the MenuBarExtra status item, whose
+    /// events have no content view worth hit-testing. PanelController supplies the Edge panel and the preview so a
+    /// scroll over the menu-bar icon is left alone rather than thrown at the grid.
+    var isAllowedWindow: (NSWindow) -> Bool = { _ in false }
 
     init(model: AppModel) { self.model = model }
 
@@ -25,7 +29,7 @@ final class ScrollWheelMonitor {
     /// True when the event scrolled the grid; it is then consumed.
     private func handle(_ event: NSEvent) -> Bool {
         guard model.ui.selectedSessionId == nil, model.ui.menuSessionId == nil, model.ui.characterSelectOpenedAt == nil,
-              let content = event.window?.contentView else { return false }
+              let window = event.window, isAllowedWindow(window), let content = window.contentView else { return false }
         let size = content.bounds.size
         let canvas = PanelScaler<EmptyView>.canvasSize
         let scale = min(size.width / canvas.width, size.height / canvas.height)

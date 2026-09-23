@@ -29,6 +29,7 @@ final class PanelController {
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.noteTouchMode(mode) } }
         }
         locator.onChange = { [weak self] screen in self?.apply(screen: screen) }
+        wheel.isAllowedWindow = { [weak self] window in window === self?.panel || window === self?.preview?.window }   // spec 2026-09-23 §8.4: panel and preview only (M1)
         locator.start()
         wheel.start()
     }
@@ -71,6 +72,7 @@ final class PanelController {
 
     private func stopTouch() {
         reader.stop()
+        dispatcher.cancel()   // M2: the Edge is gone mid-touch — no rescue coming, so let go of any grid drag now
         permissionTimer?.invalidate()
         permissionTimer = nil
         model.permissions.touchOpenFailed = false

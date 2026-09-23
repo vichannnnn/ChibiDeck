@@ -49,7 +49,16 @@ struct PanelView: View {
         }
         .coordinateSpace(name: Self.coordinateSpace)
         .onPreferenceChange(TouchRegionKey.self) { regions in
-            MainActor.assumeIsolated { model.touchRegions = regions }
+            MainActor.assumeIsolated {
+                model.touchRegions = regions
+                // M3: LazyVGrid only builds the rows it lays out, so a re-sort into an unbuilt row drops that
+                // card's region here. Close the menu when that happens to it, driven by the region list actually
+                // changing (not the render below, which would silently draw nothing and leave `menuSessionId` set,
+                // blocking grid drags, for up to the menu's own 6 s timeout).
+                if let id = model.ui.menuSessionId, !regions.contains(where: { $0.target == .card(id) }) {
+                    model.closeMenu()
+                }
+            }
         }
         .background(palette.background)
         .foregroundStyle(palette.text)

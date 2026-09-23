@@ -6,7 +6,7 @@ import SwiftUI
 /// Spec 2026-09-23 §4.2: the hosting view exists only while the window is shown.
 @MainActor
 final class PreviewWindowController: NSObject, NSWindowDelegate {
-    private let window: NSWindow
+    let window: NSWindow    // exposed so PanelController can tell ScrollWheelMonitor this window is in bounds (M1)
     private let model: AppModel
     private var hosting: NSView?
 

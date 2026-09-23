@@ -258,6 +258,16 @@ final class AppModel {
         withAnimation(Self.gridSnap) { ui.gridOffset = target }
     }
 
+    /// M2: the same settle as `endGridDrag`, without the 300 ms release grace it stamps — used when there was no
+    /// real finger release to guard against (the lost-up rescue in `TouchDispatcher`, and the Edge unplugging mid-
+    /// drag), so it must not swallow the next genuine tap the way `endGridDrag` would.
+    func cancelGridDrag() {
+        guard ui.gridDragStart != nil else { return }
+        ui.gridDragStart = nil
+        let target = GridScroll.snap(ui.gridOffset, speed: 0, count: gridCount)
+        if target != ui.gridOffset { withAnimation(Self.gridSnap) { ui.gridOffset = target } }
+    }
+
     /// Wheel and trackpad: `delta` canvas points, positive further down the list.
     func scrollGrid(by delta: Double) {
         ui.noteTouch()
