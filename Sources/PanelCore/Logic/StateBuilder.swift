@@ -46,10 +46,12 @@ public enum StateBuilder {
 
     /// Spec 2026-09-07 §2.4 rows 5–6 and §2.5: a background agent's `you:` line is the job `intent`, its
     /// `claude:` line the job `needs` (else `detail`); `suggestedReply` and `state` ride along for the sheet.
+    /// Spec 2026-09-23 §3.1: its title is cleared too, so the card falls back to the listing name.
     /// Interactive sessions are returned untouched.
     static func detailsWithJobText(_ details: [String: SessionDetail], sessions: [Session], jobs: [String: JobInfo]) -> [String: SessionDetail] {
         var out = details
         for session in sessions where session.kind == .background {
+            out[session.sessionId]?.title = nil                   // spec 2026-09-23 §3.1: a background agent's title is its listing name
             guard let job = jobs[session.sessionId] else { continue }
             var d = out[session.sessionId] ?? .empty
             if let intent = job.intent { d.lastUserPrompt = intent }

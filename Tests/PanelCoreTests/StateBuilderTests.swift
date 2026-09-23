@@ -237,6 +237,10 @@ import Testing
     }
 
     @Test func backgroundAgentsHaveNoTitleSoTheirNameShows() {     // spec 2026-09-23 §3.1
-        #expect(StateBuilder.build(Self.inputs, now: Self.now).detail(for: "id-bg").title == nil)
+        var inputs = Self.inputs
+        inputs.details = ["id-bg": SessionDetail(title: "Stray transcript title"), "id-a": SessionDetail(title: "Kept title")]
+        let state = StateBuilder.build(inputs, now: Self.now)
+        #expect(state.detail(for: "id-bg").title == nil)               // background: cleared, falls back to the listing name
+        #expect(state.detail(for: "id-a").title == "Kept title")       // interactive: left alone
     }
 }
