@@ -37,4 +37,21 @@ import Testing
             }
         }
     }
+
+    @Test func accentsStandApartFromTheStatusColours() throws {     // spec 2026-09-23 §6
+        for t in try ThemeLibrary.loadAll() {
+            let accent = try #require(RGB(hex: t.accent))
+            for (name, hex) in StatusColors.reserved {
+                let distance = ColorDistance.deltaE76(accent, try #require(RGB(hex: hex)))
+                #expect(distance >= 25, "theme \(t.id): accent \(t.accent) is \(distance) from \(name) \(hex)")
+            }
+        }
+    }
+
+    @Test func accentsAreLegibleOnCards() throws {                  // spec 2026-09-23 §6: the accent is also text
+        for t in try ThemeLibrary.loadAll() {
+            let ratio = ColorDistance.contrastRatio(try #require(RGB(hex: t.accent)), try #require(RGB(hex: t.card)))
+            #expect(ratio >= 4.5, "theme \(t.id): accent on card is \(ratio):1")
+        }
+    }
 }

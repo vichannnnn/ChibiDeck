@@ -16,12 +16,12 @@ struct ThemePalette: Equatable {
     let text: Color
     let muted: Color
 
-    static let waiting = Color(hex: "#F5C542")
-    static let busy = Color(hex: "#7DE3A5")
-    static let blocked = Color(hex: "#FF8C9A")
-    static let shell = Color(hex: "#C6B5FF")
-    static let idle = Color(hex: "#4A4866")
-    static let hot = Color(hex: "#FF9A5A")
+    static let waiting = Color(hex: StatusColors.waiting)
+    static let busy = Color(hex: StatusColors.busy)
+    static let blocked = Color(hex: StatusColors.blocked)
+    static let shell = Color(hex: StatusColors.shell)
+    static let idle = Color(hex: "#4A4866")                                   // retired in Task 13 (spec 2026-09-23 §6)
+    static let hot = Color(hex: StatusColors.hot)
 
     init(theme: Theme) {
         background = Color(hex: theme.background)
