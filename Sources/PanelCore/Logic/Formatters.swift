@@ -116,4 +116,10 @@ public enum PanelFormat {
         if h > 0 { return "\(h)h \(m)m" }
         return "\(m)m"
     }
+
+    /// Spec 2026-09-23 §3: runs of whitespace (newlines included) squashed to one space, trimmed. For titles and the
+    /// card's two-line message, where a newline would end the text early.
+    public static func singleLine(_ s: String) -> String {
+        s.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
 }

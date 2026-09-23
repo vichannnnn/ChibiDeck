@@ -226,4 +226,17 @@ import Testing
         #expect(StateBuilder.mergeDetail(existing: d1, feed: nil, transcript: cleared, tasks: [], branch: nil).pending == nil)
         #expect(StateBuilder.mergeDetail(existing: d1, feed: nil, transcript: nil, tasks: [], branch: nil).pending == d1.pending)   // no read: keep
     }
+
+    @Test func mergeDetailKeepsTheTitleThroughReadsWithoutOne() {  // spec 2026-09-23 §3.1
+        let titled = TranscriptSummary(lastUserPrompt: nil, lastAssistantText: nil, modelId: nil, contextTokens: nil, lastActivity: nil,
+                                       aiTitle: "Proton mail disappeared")
+        let d1 = StateBuilder.mergeDetail(existing: .empty, feed: nil, transcript: titled, tasks: [], branch: nil)
+        #expect(d1.title == "Proton mail disappeared")
+        let untitled = TranscriptSummary(lastUserPrompt: nil, lastAssistantText: nil, modelId: nil, contextTokens: nil, lastActivity: nil)
+        #expect(StateBuilder.mergeDetail(existing: d1, feed: nil, transcript: untitled, tasks: [], branch: nil).title == "Proton mail disappeared")
+    }
+
+    @Test func backgroundAgentsHaveNoTitleSoTheirNameShows() {     // spec 2026-09-23 §3.1
+        #expect(StateBuilder.build(Self.inputs, now: Self.now).detail(for: "id-bg").title == nil)
+    }
 }

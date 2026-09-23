@@ -213,4 +213,30 @@ import Testing
         let again = TranscriptTail.parse(chunk: Self.handoffLines.joined(separator: "\n") + "\n" + turnEnd + "\n" + Self.handoffLines[1] + "\n", dropFirstLine: false)
         #expect(!again.handoffTurnEnded && again.handoffRequestedAt == ISO8601.parse("2026-09-08T08:00:01Z"))   // a new request resets it
     }
+
+    @Test func theTitleIsTheLastAiTitleRecord() {                  // spec 2026-09-23 §3.1
+        let chunk = [
+            #"{"type":"ai-title","aiTitle":"First guess","sessionId":"s"}"#,
+            #"{"type":"user","message":{"role":"user","content":"go"},"timestamp":"2026-09-23T06:00:00Z"}"#,
+            #"{"type":"ai-title","aiTitle":"Home Page and pricing payment redesign","sessionId":"s"}"#,
+        ].joined(separator: "\n") + "\n"
+        #expect(TranscriptTail.parse(chunk: chunk, dropFirstLine: false).aiTitle == "Home Page and pricing payment redesign")
+    }
+
+    @Test func blankTitlesAreIgnoredAndWhitespaceIsSquashed() {
+        let chunk = [
+            #"{"type":"ai-title","aiTitle":"  Proton\n mail   disappeared ","sessionId":"s"}"#,
+            #"{"type":"ai-title","aiTitle":"   ","sessionId":"s"}"#,
+            #"{"type":"ai-title","sessionId":"s"}"#,
+        ].joined(separator: "\n") + "\n"
+        #expect(TranscriptTail.parse(chunk: chunk, dropFirstLine: false).aiTitle == "Proton mail disappeared")
+        #expect(TranscriptTail.parse(chunk: "", dropFirstLine: false).aiTitle == nil)
+    }
+
+    @Test func countsWhatTheFormatCheckNeeds() {                   // spec 2026-09-23 §9.1
+        let s = TranscriptTail.parse(chunk: Self.chunk, dropFirstLine: true)
+        #expect(s.humanPrompts == 1 && s.assistantRecords == 2 && s.sawUsage && s.turnEnds == 0)
+        let ended = Self.chunk + #"{"type":"system","subtype":"turn_duration","durationMs":1200,"timestamp":"2026-09-06T00:50:40.000Z"}"# + "\n"
+        #expect(TranscriptTail.parse(chunk: ended, dropFirstLine: true).turnEnds == 1)
+    }
 }

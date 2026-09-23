@@ -46,11 +46,14 @@ public struct SessionDetail: Sendable, Equatable {
     public var jobState: String?
     /// Plan 4 §5.3.1: what the session waits for, from the transcript tail; nil when nothing is open.
     public var pending: PendingInput?
+    /// Spec 2026-09-23 §3.1: Claude Code's own title for the session (`ai-title`); nil for background agents.
+    public var title: String?
 
     public init(modelName: String? = nil, effort: String? = nil, contextUsedTokens: Int? = nil, contextWindowSize: Int? = nil,
                 contextPercent: Double? = nil, contextIsEstimate: Bool = false, costUSD: Double? = nil,
                 lastUserPrompt: String? = nil, lastAssistantText: String? = nil, tasks: [TaskItem] = [],
-                branch: String? = nil, lastActivity: Date? = nil, suggestedReply: String? = nil, jobState: String? = nil, pending: PendingInput? = nil) {
+                branch: String? = nil, lastActivity: Date? = nil, suggestedReply: String? = nil, jobState: String? = nil, pending: PendingInput? = nil,
+                title: String? = nil) {
         self.modelName = modelName
         self.effort = effort
         self.contextUsedTokens = contextUsedTokens
@@ -66,6 +69,7 @@ public struct SessionDetail: Sendable, Equatable {
         self.suggestedReply = suggestedReply
         self.jobState = jobState
         self.pending = pending
+        self.title = title
     }
 
     public static let empty = SessionDetail()

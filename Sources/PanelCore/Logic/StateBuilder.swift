@@ -83,6 +83,7 @@ public enum StateBuilder {
             if let p = transcript.lastUserPrompt { d.lastUserPrompt = p }
             if let a = transcript.lastAssistantText { d.lastAssistantText = a }
             if let t = transcript.lastActivity { d.lastActivity = t }
+            if let t = transcript.aiTitle { d.title = t }                          // spec 2026-09-23 §3.1: sticks like the prompt
             if feed == nil {
                 if let model = transcript.modelId { d.modelName = model }
                 if let tokens = transcript.contextTokens {

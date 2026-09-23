@@ -19,10 +19,18 @@ public struct TranscriptSummary: Sendable, Equatable {
     /// Review 2026-09-10: a `turn_duration` system record was written after the reply, i.e. the turn that produced
     /// the block is over. The session file cannot say so: it reports `busy` while any background agent is alive.
     public var handoffTurnEnded: Bool
+    /// Spec 2026-09-23 §3.1: the last non-empty `aiTitle` of an `ai-title` record, Claude Code's own session title.
+    public var aiTitle: String?
+    /// Spec 2026-09-23 §9.1: what the format check counts in the tail.
+    public var humanPrompts: Int
+    public var assistantRecords: Int
+    public var turnEnds: Int
+    public var sawUsage: Bool
 
     public init(lastUserPrompt: String?, lastAssistantText: String?, modelId: String?, contextTokens: Int?, lastActivity: Date?,
                 pending: PendingInput? = nil, handoffReply: String? = nil, handoffReplyAt: Date? = nil, handoffRequested: Bool = false,
-                handoffRequestedAt: Date? = nil, handoffTurnEnded: Bool = false) {
+                handoffRequestedAt: Date? = nil, handoffTurnEnded: Bool = false, aiTitle: String? = nil, humanPrompts: Int = 0,
+                assistantRecords: Int = 0, turnEnds: Int = 0, sawUsage: Bool = false) {
         self.lastUserPrompt = lastUserPrompt
         self.lastAssistantText = lastAssistantText
         self.modelId = modelId
@@ -34,6 +42,11 @@ public struct TranscriptSummary: Sendable, Equatable {
         self.handoffRequested = handoffRequested
         self.handoffRequestedAt = handoffRequestedAt
         self.handoffTurnEnded = handoffTurnEnded
+        self.aiTitle = aiTitle
+        self.humanPrompts = humanPrompts
+        self.assistantRecords = assistantRecords
+        self.turnEnds = turnEnds
+        self.sawUsage = sawUsage
     }
 }
 
@@ -103,11 +116,13 @@ public enum TranscriptTail {
                 }
                 if (o["isMeta"] as? Bool) == true { continue }
                 if let text = userText(message?["content"]) {
+                    summary.humanPrompts += 1                                 // spec 2026-09-23 §9.1
                     summary.lastUserPrompt = text
                     open.removeAll()                                          // a dialog belongs to the current turn
                 }
                 for id in toolResultIds(message?["content"]) { open.removeAll { $0.id == id } }
             case "assistant":
+                summary.assistantRecords += 1                                 // spec 2026-09-23 §9.1
                 open.append(contentsOf: toolUses(message?["content"]))
                 if let text = assistantText(message?["content"]) {
                     summary.lastAssistantText = text
@@ -120,6 +135,7 @@ public enum TranscriptTail {
                     }
                 }
                 if let usage = message?["usage"] as? [String: Any] {
+                    summary.sawUsage = true                                    // spec 2026-09-23 §9.1
                     let input = (usage["input_tokens"] as? Int) ?? 0
                     let cacheRead = (usage["cache_read_input_tokens"] as? Int) ?? 0
                     let cacheCreate = (usage["cache_creation_input_tokens"] as? Int) ?? 0
@@ -127,9 +143,12 @@ public enum TranscriptTail {
                     summary.modelId = (message?["model"] as? String) ?? summary.modelId
                 }
             case "system":
-                if (o["subtype"] as? String) == turnEndSubtype, summary.handoffReply != nil {   // review 2026-09-10
-                    summary.handoffTurnEnded = true
-                }
+                guard (o["subtype"] as? String) == turnEndSubtype else { continue }
+                summary.turnEnds += 1                                              // spec 2026-09-23 §9.1
+                if summary.handoffReply != nil { summary.handoffTurnEnded = true }  // review 2026-09-10
+            case "ai-title":                                                        // spec 2026-09-23 §3.1
+                let title = PanelFormat.singleLine((o["aiTitle"] as? String) ?? "")
+                if !title.isEmpty { summary.aiTitle = title }
             default:
                 continue
             }

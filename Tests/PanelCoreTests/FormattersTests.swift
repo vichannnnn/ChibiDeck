@@ -100,4 +100,10 @@ import Testing
         #expect(PanelFormat.hourLabel(Self.at(16, 0), calendar: Self.utc) == "4pm")
         #expect(PanelFormat.hourLabel(Self.at(23, 59), calendar: Self.utc) == "11pm")
     }
+
+    @Test func singleLineSquashesWhitespace() {                    // spec 2026-09-23 §3
+        #expect(PanelFormat.singleLine("Done.\n\n- tests pass\n- build  ok") == "Done. - tests pass - build ok")
+        #expect(PanelFormat.singleLine("  \n ") == "")
+        #expect(PanelFormat.singleLine("plain") == "plain")
+    }
 }
