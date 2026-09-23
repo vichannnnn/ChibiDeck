@@ -30,8 +30,7 @@ struct CharacterSelect: View {
         let own = ThemePalette(theme: theme)
         return Button(action: { model.perform(.characterPick(theme.id)) }) {
             VStack(spacing: 0) {
-                MascotView(mascot: mascot, pose: current ? .top : .cruise)
-                    .frame(width: CGFloat(CharacterSelectLayout.spriteCols * scale), height: CGFloat(CharacterSelectLayout.spriteRows * scale))
+                MascotView(mascot: mascot, pose: current ? .top : .cruise, scale: scale)
                     .padding(.top, CharacterSelectLayout.tilePadding)
                 Text(mascot.displayName).font(PanelType.mono(24, .bold)).foregroundStyle(own.text).lineLimit(1)
                     .frame(height: 30).padding(.top, 8)

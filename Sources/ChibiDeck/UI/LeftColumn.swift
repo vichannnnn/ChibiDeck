@@ -1,7 +1,7 @@
 import SwiftUI
 import PanelCore
 
-/// Spec 2026-09-07 §2.2: character (tap = next theme; Character select §3: hold = the character select), clock, date.
+/// Spec 2026-09-07 §2.2 as amended by spec 2026-09-23 §5: character at 5× (tap = next theme; Character select §3: hold = the character select), clock, date.
 /// Plan 3 §7: up to two permission lines in blocked red under the `stale` slot (y 360 and 384), only while something is denied.
 struct LeftColumn: View, Equatable {
     @Environment(AppModel.self) private var model
@@ -15,8 +15,7 @@ struct LeftColumn: View, Equatable {
 
     var body: some View {
         VStack(spacing: 0) {
-            MascotView(mascot: model.currentMascot, pose: pose, desaturated: isStale)
-                .frame(width: 280, height: 280)
+            MascotView(mascot: model.currentMascot, pose: pose, scale: 5, desaturated: isStale)   // spec 2026-09-23 §5: 340×335 at x 30, y 40
                 .contentShape(Rectangle())
                 .onTapGesture { model.perform(.mascot) }
                 .simultaneousGesture(LongPressGesture(minimumDuration: LongPressRecognizer.minimumDuration)

@@ -1,31 +1,55 @@
 import SwiftUI
 import PanelCore
 
-/// Draws one sprite frame per tick (4 fps, spec 2026-09-08 §3) as horizontal runs on a Canvas. Nearest-neighbour look comes from drawing rects, not images.
+/// Spec 2026-09-23 §5: one pre-rendered image per sprite frame, drawn unfiltered at a whole-number `scale`, so each
+/// sprite pixel covers `scale × scale` device pixels (the Edge at 1×, or HiDPI and the Retina preview at 0.5 × 2).
+/// 4 fps as spec 2026-09-08 §3; the timeline only picks the image.
 struct MascotView: View {
     let mascot: Mascot
     let pose: MascotPose
+    let scale: Int
     var desaturated = false
 
     var body: some View {
+        let frames = MascotImages.shared.frames(for: mascot, pose: pose)
         TimelineView(.periodic(from: .now, by: 0.25)) { context in
-            let frames = mascot.frames(for: pose)
             let index = frames.isEmpty ? 0 : Int(context.date.timeIntervalSinceReferenceDate * 4) % frames.count
-            Canvas(rendersAsynchronously: false) { gc, size in
-                guard !frames.isEmpty else { return }
-                let sx = size.width / CGFloat(mascot.cols)
-                let sy = size.height / CGFloat(mascot.rows)
-                for (y, row) in frames[index].runs.enumerated() {
-                    for run in row {
-                        let rect = CGRect(x: CGFloat(run.x) * sx, y: CGFloat(y) * sy, width: CGFloat(run.length) * sx + 0.5, height: sy + 0.5)
-                        gc.fill(Path(rect), with: .color(Color(rgb: mascot.palette[run.colorIndex])))
-                    }
+            Group {
+                if frames.isEmpty {
+                    Color.clear
+                } else {
+                    Image(decorative: frames[index], scale: 1).resizable().interpolation(.none).antialiased(false)
                 }
             }
             .saturation(desaturated ? 0 : 1)
             .opacity(desaturated ? 0.55 : 1)
         }
-        .aspectRatio(CGFloat(mascot.cols) / CGFloat(mascot.rows), contentMode: .fit)
+        .frame(width: CGFloat(mascot.cols * scale), height: CGFloat(mascot.rows * scale))
         .accessibilityLabel("\(mascot.displayName), \(pose.rawValue)")
+    }
+}
+
+/// Spec 2026-09-23 §5: the frames as `CGImage`s, made on first use and kept (nine mascots × two tiers × eight frames of
+/// 68 × 67 pixels, about 3 MB).
+@MainActor
+final class MascotImages {
+    static let shared = MascotImages()
+    private var cache: [String: [CGImage]] = [:]
+
+    func frames(for mascot: Mascot, pose: MascotPose) -> [CGImage] {
+        let key = "\(mascot.id)/\(pose.rawValue)"
+        if let hit = cache[key] { return hit }
+        let images = mascot.frames(for: pose).compactMap { Self.image($0, mascot: mascot) }
+        cache[key] = images
+        return images
+    }
+
+    private static func image(_ frame: MascotFrame, mascot: Mascot) -> CGImage? {
+        let bytes = MascotRaster.rgba(frame, palette: mascot.palette, cols: mascot.cols, rows: mascot.rows)
+        guard let provider = CGDataProvider(data: Data(bytes) as CFData),
+              let space = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        return CGImage(width: mascot.cols, height: mascot.rows, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: mascot.cols * 4,
+                       space: space, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
     }
 }
