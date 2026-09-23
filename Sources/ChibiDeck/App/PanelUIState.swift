@@ -17,6 +17,12 @@ final class PanelUIState {
     var menuOpenedAt: Date?
     /// Character select §6: when the screen opened (nil = closed); the 10 s auto-close counts from here.
     var characterSelectOpenedAt: Date?
+    /// Spec 2026-09-23 §8.2: how far the session grid is scrolled, in canvas points (0 = top).
+    var gridOffset: Double = 0
+    /// Where the offset stood when the current drag began; nil while no drag runs.
+    var gridDragStart: Double?
+    /// Spec 2026-09-23 §8.4: when the last drag ended; a card click this soon after is the drag's own release.
+    var gridDragEndedAt: Date?
 
     func openSheet(for sessionId: String, now: Date = Date()) {
         sheetPage = 0

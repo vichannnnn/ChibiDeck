@@ -10,13 +10,36 @@ struct TouchRegionKey: PreferenceKey {
     }
 }
 
-extension View {
-    /// Registers this view's frame (in `PanelView.coordinateSpace`, i.e. canvas points) as a touch region.
-    func touchTarget(_ target: TouchTarget, z: Int = 0) -> some View {
-        background(GeometryReader { geo in
+/// Spec 2026-09-23 §8.7: the visible rectangle, on the canvas, that the regions registered below it are clipped to.
+private struct TouchClipKey: EnvironmentKey {
+    static let defaultValue: CGRect? = nil
+}
+
+extension EnvironmentValues {
+    var touchClip: CGRect? {
+        get { self[TouchClipKey.self] }
+        set { self[TouchClipKey.self] = newValue }
+    }
+}
+
+/// Registers the view's frame (in `PanelView.coordinateSpace`, i.e. canvas points) as a touch region, clipped to the
+/// environment's `touchClip` when one is set.
+private struct TouchTargetModifier: ViewModifier {
+    @Environment(\.touchClip) private var clip
+    let target: TouchTarget
+    let z: Int
+
+    func body(content: Content) -> some View {
+        content.background(GeometryReader { geo in
             Color.clear.preference(key: TouchRegionKey.self,
-                                   value: [TouchRegion(target: target, frame: geo.frame(in: .named(PanelView.coordinateSpace)), z: z)])
+                                   value: [TouchRegion(target: target, frame: geo.frame(in: .named(PanelView.coordinateSpace)), z: z, clip: clip)])
         })
+    }
+}
+
+extension View {
+    func touchTarget(_ target: TouchTarget, z: Int = 0) -> some View {
+        modifier(TouchTargetModifier(target: target, z: z))
     }
 
     /// Plan 4 §8.1: a pill that cannot act registers no region, so a tap on it falls through to what is under it.

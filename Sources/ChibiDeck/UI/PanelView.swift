@@ -1,7 +1,7 @@
 import SwiftUI
 import PanelCore
 
-/// Spec 2026-09-07 §2: 400 px left column, 520 px limits column, 1640 px sessions column (the sheet slides over the last).
+/// Spec 2026-09-07 §2: 400 px left column, 520 px limits column, 1640 px sessions column (the sheet slides over the last; spec 2026-09-23 §8: its grid scrolls).
 /// Plan 3 §5.3: the root declares the canvas coordinate space and collects every `.touchTarget` region.
 /// Plan 6 §4: the card menu layer sits over the whole canvas (backdrop z 2, rows z 3); Character select §4: so does the character select (backdrop z 2, tiles z 3).
 struct PanelView: View {
@@ -90,6 +90,13 @@ struct PanelView: View {
         }
         .onChange(of: state.sessions.map(\.sessionId)) { _, ids in                 // Plan 6 §5: the card left the grid (exited or hidden)
             if let id = model.ui.menuSessionId, !ids.contains(id) { model.closeMenu() }
+        }
+        .onChange(of: state.sessions.count) { _, _ in model.clampGrid() }       // spec 2026-09-23 §8: sessions left while scrolled
+        .task(id: model.ui.lastTouch) {                                          // spec 2026-09-23 §8.6
+            guard model.ui.lastTouch != nil else { return }
+            try? await Task.sleep(for: .seconds(AppModel.gridReturnAfter))
+            guard !Task.isCancelled else { return }
+            model.returnGridToTop()
         }
         .task(id: dimKey) {
             while !Task.isCancelled {

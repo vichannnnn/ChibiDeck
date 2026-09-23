@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Observation
 import PanelCore
 import os
@@ -163,6 +164,7 @@ final class AppModel {
             break                                                      // spec 2026-09-23 §8.3: only drags start here
         case .card(let id):
             guard ui.menuSessionId == nil else { return }               // Plan 6 §5: while a menu is open only its rows and backdrop act
+            guard !gridDragJustHappened else { return }                 // spec 2026-09-23 §8.4: a drag's release must not act as a tap
             guard collector.state.session(id: id) != nil else { return }
             bridge.refreshPermission()
             ui.openSheet(for: id)
@@ -186,6 +188,7 @@ final class AppModel {
             ui.sheetOpenedAt = Date()
         case .cardAnswer(let id):
             guard ui.menuSessionId == nil else { return }               // Plan 6 §5: a long press on the pill opened the menu; its release types nothing
+            guard !gridDragJustHappened else { return }                 // spec 2026-09-23 §8.4: a drag's release must not act as a tap
             guard let session = collector.state.session(id: id), let pill = cardPill(for: session), !pill.opensSheet,
                   let first = answers(for: session).first else { return }      // Plan 4 §7: only a sending pill sends
             sendAnswer(first, to: session)
@@ -222,6 +225,66 @@ final class AppModel {
             if let session = menuSession { collector.hide(session) }
             ui.closeMenu()
         }
+    }
+
+    // MARK: - Grid scroll (spec 2026-09-23 §8)
+
+    static let gridReturnAfter: TimeInterval = 30
+    static let dragReleaseGrace: TimeInterval = 0.3
+    private static let gridSnap = Animation.easeOut(duration: 0.2)
+    private var gridCount: Int { collector.state.sessions.count }
+
+    func beginGridDrag() {
+        ui.noteTouch()
+        ui.gridDragStart = ui.gridOffset
+    }
+
+    /// `travel`: the finger's vertical travel since the down, negative towards the top; the grid follows the finger.
+    func dragGrid(travel: Double) {
+        guard let start = ui.gridDragStart else { return }
+        ui.noteTouch()
+        ui.gridOffset = GridScroll.clamp(start - travel, count: gridCount)
+    }
+
+    /// `speed`: the finger's vertical speed at release, negative towards the top (the offset's rate is its negative).
+    func endGridDrag(speed: Double) {
+        guard ui.gridDragStart != nil else { return }
+        ui.gridDragStart = nil
+        ui.gridDragEndedAt = Date()
+        ui.noteTouch()
+        let target = GridScroll.snap(ui.gridOffset, speed: -speed, count: gridCount)
+        withAnimation(Self.gridSnap) { ui.gridOffset = target }
+    }
+
+    /// Wheel and trackpad: `delta` canvas points, positive further down the list.
+    func scrollGrid(by delta: Double) {
+        ui.noteTouch()
+        ui.gridOffset = GridScroll.clamp(ui.gridOffset + delta, count: gridCount)
+    }
+
+    /// The wheel gesture ended: rest on the nearest row.
+    func settleGrid() {
+        let target = GridScroll.snap(ui.gridOffset, speed: 0, count: gridCount)
+        if target != ui.gridOffset { withAnimation(Self.gridSnap) { ui.gridOffset = target } }
+    }
+
+    /// Spec 2026-09-23 §8.6: the resting view is the top of the order.
+    func returnGridToTop() {
+        guard ui.gridOffset != 0, ui.gridDragStart == nil else { return }
+        withAnimation(.easeInOut(duration: 0.4)) { ui.gridOffset = 0 }
+    }
+
+    /// Sessions left while the grid was scrolled: move back inside it.
+    func clampGrid() {
+        let clamped = GridScroll.clamp(ui.gridOffset, count: gridCount)
+        if clamped != ui.gridOffset { withAnimation(Self.gridSnap) { ui.gridOffset = clamped } }
+    }
+
+    /// Spec 2026-09-23 §8.4: a click that ends a mouse drag over a card must not open it or send its answer.
+    private var gridDragJustHappened: Bool {
+        if ui.gridDragStart != nil { return true }
+        guard let ended = ui.gridDragEndedAt else { return false }
+        return Date().timeIntervalSince(ended) < Self.dragReleaseGrace
     }
 
     /// Plan 4 §5.3: what the card pill and the sheet pills offer for a session right now.
