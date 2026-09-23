@@ -59,8 +59,19 @@ import Testing
 
     @Test func staleWhenListingIsOld() {
         var inputs = Self.inputs
-        inputs.lastListingSuccess = Self.now.addingTimeInterval(-45)
+        inputs.lastListingSuccess = Self.now.addingTimeInterval(-95)
         #expect(StateBuilder.build(inputs, now: Self.now).isStale)
+    }
+
+    @Test func theStateCarriesTheMinuteNotTheSecond() {        // spec 2026-09-23 §4.1
+        var utc = Calendar(identifier: .gregorian); utc.timeZone = TimeZone(identifier: "UTC")!
+        let t = Date(timeIntervalSince1970: 1_788_660_017)                      // 12:00:17 UTC
+        let a = StateBuilder.build(Self.inputs, now: t, calendar: utc)
+        let b = StateBuilder.build(Self.inputs, now: t.addingTimeInterval(20), calendar: utc)
+        #expect(a.now == Date(timeIntervalSince1970: 1_788_660_000))
+        #expect(a == b)                                                          // same minute, same inputs
+        let c = StateBuilder.build(Self.inputs, now: t.addingTimeInterval(50), calendar: utc)   // 12:01:07
+        #expect(c.now == Date(timeIntervalSince1970: 1_788_660_060) && c != a)
     }
 
     @Test func everySessionIsOnTheGrid() {                      // spec 2026-09-23 §8.1: no cap

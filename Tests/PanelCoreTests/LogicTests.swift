@@ -65,10 +65,11 @@ import Testing
         #expect(MascotStateResolver.pose(sessions: [Self.s("a", .busy)], dismissed: [], quietHours: q, now: at(23), calendar: utc) == .sleep)
     }
 
-    @Test func staleAfterThirtySeconds() {
+    @Test func staleAfterNinetySeconds() {                     // spec 2026-09-23 §4.3: the listing runs every 30 s
         let t0 = Date(timeIntervalSince1970: 1000)
-        #expect(!StaleDetector.isStale(lastSuccess: t0, now: t0.addingTimeInterval(29)))
-        #expect(StaleDetector.isStale(lastSuccess: t0, now: t0.addingTimeInterval(31)))
+        #expect(!StaleDetector.isStale(lastSuccess: t0, now: t0.addingTimeInterval(60)))
+        #expect(!StaleDetector.isStale(lastSuccess: t0, now: t0.addingTimeInterval(89)))
+        #expect(StaleDetector.isStale(lastSuccess: t0, now: t0.addingTimeInterval(91)))
         #expect(StaleDetector.isStale(lastSuccess: nil, now: t0))
     }
 

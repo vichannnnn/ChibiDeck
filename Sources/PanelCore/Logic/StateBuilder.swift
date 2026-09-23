@@ -34,7 +34,7 @@ public enum StateBuilder {
             mascotPose: pose,
             isStale: StaleDetector.isStale(lastSuccess: inputs.lastListingSuccess, now: now),
             dismissed: inputs.dismissed,
-            now: now,
+            now: minuteStart(now, calendar: calendar),
             forecasts: forecasts,
             burn: inputs.burn,
             burnChart: burnChart,
@@ -98,5 +98,12 @@ public enum StateBuilder {
         if !tasks.isEmpty { d.tasks = tasks }
         if let branch { d.branch = branch }
         return d
+    }
+
+    /// Spec 2026-09-23 §4.1: the state carries the start of the current minute, so two builds inside one minute with
+    /// the same inputs are equal and the collector skips publishing the second. Staleness, ageing, forecasts and the
+    /// burn chart still use the real time; text that ticks every second draws its own time.
+    static func minuteStart(_ date: Date, calendar: Calendar) -> Date {
+        calendar.dateInterval(of: .minute, for: date)?.start ?? date
     }
 }

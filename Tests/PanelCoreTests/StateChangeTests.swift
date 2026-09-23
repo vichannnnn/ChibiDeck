@@ -26,7 +26,7 @@ import Testing
 
     @Test func stalenessDoesNotCountAsAStateChange() {
         let fresh = StateBuilder.build(Self.inputs(), now: Self.now)
-        let stale = StateBuilder.build(Self.inputs(listingSuccess: -45), now: Self.now)
+        let stale = StateBuilder.build(Self.inputs(listingSuccess: -95), now: Self.now)
         #expect(!fresh.isStale && stale.isStale)
         #expect(StateChange.sessionSignature(fresh) == StateChange.sessionSignature(stale))
     }
