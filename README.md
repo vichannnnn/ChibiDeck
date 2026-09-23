@@ -15,13 +15,14 @@ Everything is read from files Claude Code already writes and from `claude agents
 |---|---|
 | Left (400 px) | Mascot, clock, date. Permission warnings appear here while something is denied. |
 | Middle (520 px) | Five-hour, weekly and model-scoped limits from Claude Code's own usage cache, a forecast of when each fills, today's messages / tool calls / cost, and a 24 h tokens-per-hour burn chart built from your transcripts. |
-| Right (1640 px) | Up to eight session cards: status and elapsed time, session name, `repo@branch`, your last line and Claude's, the task list, the context-window bar, model and effort chips, and a one-tap answer pill. Waiting sessions get a yellow border, blocked background agents a red one. |
+| Right (1640 px) | Every session, four cards to a row, two rows in view: status and elapsed time, the session's title (Claude Code's own title, else its name), `repo@branch`, Claude's last message, the task list, the context-window bar, model and effort chips, and a one-tap answer pill. Sessions waiting on you come first (waiting, blocked, idle), then the ones in progress (working, shell). Colour marks what waits for you: waiting sessions get a yellow border, blocked background agents a red one, idle ones the theme accent; working and shell stay grey. |
 
 The mascot loops her hair-wave animation the whole time; when a session is waiting for you she hops with sparkles until you answer.
 
 Touch (or the mouse in the preview window):
 
 - **Tap a card** opens the detail sheet: Claude's last text, paged with ▲ ▼ or a vertical swipe (up reads on, down goes back), the answers row, Focus tab, Handoff, Dismiss, Hide.
+- **Drag up or down over the cards** scrolls the grid a row at a time when there are more than eight sessions (a quick flick moves at least one row); the header counts the sessions above and below, and the `above` count turns yellow when one of them waits for you. The grid returns to the top 30 s after your last touch. In the preview window the mouse wheel, the trackpad or a click-drag does the same.
 - **Tap the answer pill** types that answer into the session's Terminal tab. Numbered options come from the question Claude asked; otherwise your quick replies (`go`, `yes`, `no` by default).
 - **Hold a card for half a second** opens the card menu: Focus tab · Handoff · Dismiss · Hide.
 - **Handoff** (card menu or the sheet) makes the session write a handoff prompt with the `/handoff` skill, clears the session with `/clear`, and pastes the prompt back into the same tab, so you come back to a fresh session that already knows where it was. The card shows `HANDOFF · reply`, `· clear`, then `· paste` in the theme accent until the paste lands, and toasts report each step; the tab must be idle or busy, not waiting on a question.
@@ -63,7 +64,7 @@ xattr -dr com.apple.quarantine "/Applications/Chibi Deck.app"
 
 To start the zip's copy at login, add it under System Settings → General → Login Items.
 
-Either way, Chibi Deck runs as a menu-bar item (its icon at the top right of the screen) and, by default, as a Dock icon too, so you can keep it in the Dock; clicking the Dock icon opens the preview window. Untick **Show in Dock** in the menu to hide it again. Its menu shows the two permissions it needs and opens the right System Settings pane for each: **Input Monitoring** for touch on the Edge, and **Automation → Terminal** for the tap actions. Plugging the Edge in or out while it runs moves the panel between the Edge and the preview window.
+Either way, Chibi Deck runs as a menu-bar item (its icon at the top right of the screen) and, by default, as a Dock icon too, so you can keep it in the Dock; clicking the Dock icon opens the preview window. Untick **Show in Dock** in the menu to hide it again. Its menu shows the two permissions it needs and opens the right System Settings pane for each: **Input Monitoring** for touch on the Edge, and **Automation → Terminal** for the tap actions. The menu also shows the Claude Code version and `formats OK`, or lists any field Claude Code stopped writing that the panel reads. Plugging the Edge in or out while it runs moves the panel between the Edge and the preview window.
 
 ## Build and run
 
@@ -106,7 +107,7 @@ Logs go to the unified log: `/usr/bin/log stream --predicate 'subsystem == "me.h
 
 ## Mascots and themes
 
-Each character comes with its own colour theme; tapping the mascot cycles through them, and holding it opens the character-select screen. The sprites are 68×67 pixels in at most 16 colours, two animations of eight frames at 4 fps: the hair-wave loop, and the "needs you" hop with sparkles. They are generated, not hand-edited: `Scripts/mascots/build.py` composes each character from a shared body, a donor hair cut, hand-drawn accessory grids and a colour table. `Scripts/mascots/README.md` explains how to add one, and the `chibi-creation` skill walks a Claude Code session through it.
+Each character comes with its own colour theme; tapping the mascot cycles through them, and holding it opens the character-select screen. The sprites are 68×67 pixels in at most 16 colours, drawn at exactly 5× on the panel, two animations of eight frames at 4 fps: the hair-wave loop, and the "needs you" hop with sparkles. They are generated, not hand-edited: `Scripts/mascots/build.py` composes each character from a shared body, a donor hair cut, hand-drawn accessory grids and a colour table. `Scripts/mascots/README.md` explains how to add one, and the `chibi-creation` skill walks a Claude Code session through it.
 
 ![The nine mascots on their theme backgrounds](docs/images/roster.png)
 

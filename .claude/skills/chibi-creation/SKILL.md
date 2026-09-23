@@ -29,7 +29,7 @@ the colour), and the tap position (new characters go last unless told otherwise)
    `Part(...)` entries: `bend` for hair and hanging cloth (`stretch=False` for free twintails), `wag` for tails and
    wings, `rigid` for hats and pins, `nod=False` for a prop held at the torso. Rows 0–1 stay empty (the hop).
 2. **Register**: add the module to `Scripts/mascots/chibi/__init__.py` (`ROSTER` tuple, docstring order line).
-3. **Theme** `Sources/PanelCore/Resources/Themes/<theme-id>.json`, one line, `"mascot":"<id>"`, `"order"` = tap position.
+3. **Theme** `Sources/PanelCore/Resources/Themes/<theme-id>.json`, one line, `"mascot":"<id>"`, `"order"` = tap position. The accent must pass `ThemeLoaderTests`' colour checks: at least ΔE 25 from the status colours in `Sources/PanelCore/Models/StatusColors.swift` and 4.5:1 on the theme's card; `swift test --filter ThemeLoaderTests` names the pair that fails.
 4. **Build and render**: `python3 Scripts/mascots/build.py build <id>` then `render` with no ids (`render <id>` is
    faster but leaves `contact.png` with that one mascot, and the checklist compares neighbours).
 5. **Review the sheet yourself** (`build/mascots/<id>-sheet.png`, `<id>.gif`, `<id>-loop.gif`, `contact.png`) against
