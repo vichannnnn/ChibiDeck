@@ -14,7 +14,7 @@ struct ChibiDeckApp: App {
     }
 }
 
-/// Plan 3 §7: Show Preview · Theme · Auto-dim · feed status · touch permission · Terminal automation · Quit.
+/// Plan 3 §7: Show Preview · Theme · Auto-dim · feed status · touch permission · Terminal automation · format check (spec 2026-09-23 §9) · Quit.
 struct MenuContent: View {
     @Environment(AppModel.self) private var model
     let panels: PanelController
@@ -59,7 +59,20 @@ struct MenuContent: View {
         } else {
             Text("Terminal automation: ok")
         }
+        formatLine                                                                   // spec 2026-09-23 §9.3
         Divider()
         Button("Quit Chibi Deck") { NSApp.terminate(nil) }
+    }
+
+    @ViewBuilder private var formatLine: some View {
+        let version = model.collector.claudeVersion.map { "Claude Code \($0)" } ?? "Claude Code"
+        let warnings = model.collector.formatWarnings
+        if warnings.isEmpty {
+            Text("\(version) · formats OK")
+        } else {
+            Menu("\(version) · \(warnings.count) format warning\(warnings.count == 1 ? "" : "s")") {
+                ForEach(warnings, id: \.self) { Text($0) }
+            }
+        }
     }
 }

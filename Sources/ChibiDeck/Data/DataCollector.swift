@@ -9,6 +9,9 @@ private let dataLog = Logger(subsystem: "me.himaa.chibideck", category: "data")
 final class DataCollector {
     private(set) var state: PanelState
     private(set) var lastStateChange = Date()
+    /// Spec 2026-09-23 §9: the menu's format warnings and the newest Claude Code version among live session files.
+    private(set) var formatWarnings: [String] = []
+    private(set) var claudeVersion: String?
 
     private let settings: PanelSettings
     private var inputs = RawInputs()
@@ -36,6 +39,9 @@ final class DataCollector {
     private var feedCache: [String: StatuslineRecord?] = [:]
     private var transcriptGate = ChangeGate()
     private var transcriptPaths: [String: String] = [:]          // session id → transcript path, for `retain`
+    private var canary = FormatCanary()
+    private var loggedWarnings: Set<String> = []
+    private var cacheHasLimits = false
 
     // Plan 3 §9.2: the only caches, all swept every tick.
     private var branchCache = ExpiringCache<String, String?>(ttl: DataCollector.branchInterval)        // keyed by cwd
@@ -143,6 +149,7 @@ final class DataCollector {
         for s in state.sessions { await refreshDetail(sessionId: s.sessionId, force: false) }
         if let sel = state.allSessions.first(where: { $0.sessionId == selectedForDetail }) { await refreshDetail(sessionId: sel.sessionId, force: false) }
         sweepCaches()
+        refreshFormatWarnings()
         rebuild(reason: "tick")
     }
 
@@ -170,6 +177,10 @@ final class DataCollector {
             let data = try await ClaudeCLI.agentsJSON()
             inputs.listedSessions = try AgentsListParser.parse(data)
             inputs.lastListingSuccess = Date()
+            canary.observe(.listingShape, present: true, at: Date())
+        } catch let error as AgentsListParser.ParseError {
+            canary.observe(.listingShape, present: false, at: Date())
+            dataLog.error("agents --json failed: \(String(describing: error))")
         } catch {
             dataLog.error("agents --json failed: \(String(describing: error))")
         }
@@ -221,9 +232,13 @@ final class DataCollector {
             }
             guard let rec = sessionFileCache[url.path] ?? nil, kill(pid_t(rec.pid), 0) == 0 else { continue }   // spec §11: dead pids
             patches[rec.pid] = rec
+            canary.observe(.sessionStatusUpdatedAt, present: rec.statusUpdatedAt != nil, at: Date())   // spec 2026-09-23 §9.1
+            if let raw = rec.rawStatus, SessionStatus(claudeString: raw) == .unknown { canary.observeUnknownStatus(raw, at: Date()) }
         }
         sessionFileGate.retain(paths)
         sessionFileCache = sessionFileCache.filter { paths.contains($0.key) }
+        let newest = patches.values.compactMap(\.version).max { $0.compare($1, options: .numeric) == .orderedAscending }
+        if newest != claudeVersion { claudeVersion = newest }
         inputs.filePatches = patches
     }
 
@@ -261,6 +276,8 @@ final class DataCollector {
         guard m != configMTime else { return }
         configMTime = m
         if let data = try? Data(contentsOf: ClaudePaths.configFile), let limits = UsageCacheParser.parse(data) {
+            canary.observe(.usageCacheShape, present: !limits.rows.isEmpty, at: Date())   // the cache is there: its rows must parse
+            cacheHasLimits = !limits.rows.isEmpty
             adoptLimits(limits)
         }
     }
@@ -281,7 +298,10 @@ final class DataCollector {
         let m = ClaudePaths.modificationDate(ClaudePaths.statsCache)
         guard m != statsMTime else { return }
         statsMTime = m
-        if let data = try? Data(contentsOf: ClaudePaths.statsCache) { inputs.activity = StatsCacheParser.parse(data) }
+        if let data = try? Data(contentsOf: ClaudePaths.statsCache) {
+            inputs.activity = StatsCacheParser.parse(data)
+            canary.observe(.statsCacheShape, present: !inputs.activity.isEmpty, at: Date())
+        }
     }
 
     /// Spec 2026-09-23 §4.3: a feed file is parsed again only when its stamp moved; one cache serves both readers.
@@ -311,6 +331,13 @@ final class DataCollector {
             paths.insert(url.path)
             guard let stamp = ClaudePaths.stamp(url), cal.isDateInToday(stamp.modified),
                   let rec = cachedFeedRecord(at: url, stamp: stamp) else { continue }
+            if Date().timeIntervalSince(stamp.modified) < FormatCanary.window {           // spec 2026-09-23 §9.1: fresh feed files
+                let now = Date()
+                canary.observe(.feedContext, present: rec.contextWindowSize != nil && rec.totalInputTokens != nil, at: now)
+                canary.observe(.feedModel, present: (rec.modelDisplayName ?? rec.modelId) != nil, at: now)
+                canary.observe(.feedCost, present: rec.totalCostUSD != nil, at: now)
+                if cacheHasLimits { canary.observe(.feedRateLimits, present: rec.rateLimits != nil, at: now) }
+            }
             if let limits = rec.rateLimits { adoptLimits(limits) }
             if let cost = rec.totalCostUSD { costs[rec.sessionId] = cost }
         }
@@ -333,6 +360,14 @@ final class DataCollector {
         var transcript: TranscriptSummary?
         if readTranscript {
             transcript = await Task.detached(priority: .utility) { TranscriptTail.read(url: transcriptURL) }.value
+            if let t = transcript {                                                        // spec 2026-09-23 §9.1
+                let now = Date()
+                if t.assistantRecords > 0 { canary.observe(.transcriptUsage, present: t.sawUsage, at: now) }
+                if t.humanPrompts >= 2 {
+                    canary.observe(.transcriptTurnEnd, present: t.turnEnds > 0, at: now)
+                    canary.observe(.transcriptTitle, present: t.aiTitle != nil, at: now)
+                }
+            }
         }
         // Plan 3 §9.1: a tool-heavy session's last human prompt can lie megabytes before the end. Read further back
         // once (per ten minutes), and only while no prompt is known; once found it sticks through `mergeDetail`.
@@ -366,6 +401,14 @@ final class DataCollector {
         let result = await link.value
         branchCache.set(result, for: cwd, now: Date())
         return result
+    }
+
+    /// Spec 2026-09-23 §9.3: publish the canary's view; log each warning once when it appears.
+    private func refreshFormatWarnings(now: Date = Date()) {
+        let warnings = canary.warnings(at: now)
+        for w in warnings where !loggedWarnings.contains(w) { dataLog.error("format: \(w, privacy: .public)") }
+        loggedWarnings = Set(warnings)
+        if warnings != formatWarnings { formatWarnings = warnings }
     }
 
     private func rebuild(reason: String?) {
