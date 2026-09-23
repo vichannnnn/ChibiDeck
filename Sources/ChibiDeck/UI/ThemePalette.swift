@@ -20,7 +20,6 @@ struct ThemePalette: Equatable {
     static let busy = Color(hex: StatusColors.busy)
     static let blocked = Color(hex: StatusColors.blocked)
     static let shell = Color(hex: StatusColors.shell)
-    static let idle = Color(hex: "#4A4866")                                   // retired in Task 13 (spec 2026-09-23 §6)
     static let hot = Color(hex: StatusColors.hot)
 
     init(theme: Theme) {
@@ -32,13 +31,16 @@ struct ThemePalette: Equatable {
         muted = Color(hex: theme.muted, fallback: .gray)
     }
 
-    static func status(_ s: SessionStatus) -> Color {
+    /// Spec 2026-09-23 §6–7: waiting, blocked, busy and shell in their fixed colours; idle in the theme accent (it waits
+    /// for the user's next message); unknown in the muted text.
+    func statusColor(_ s: SessionStatus) -> Color {
         switch s {
-        case .waiting: waiting
-        case .busy: busy
-        case .blocked: blocked
-        case .shell: shell
-        case .idle, .unknown: idle
+        case .waiting: Self.waiting
+        case .blocked: Self.blocked
+        case .busy: Self.busy
+        case .shell: Self.shell
+        case .idle: accent
+        case .unknown: muted
         }
     }
 

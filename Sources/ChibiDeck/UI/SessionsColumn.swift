@@ -16,7 +16,7 @@ struct SessionsColumn: View {
                 Text("Sessions").sectionLabel(palette)
                 Text("\(state.allSessions.count) live").font(PanelType.mono(20, .bold)).foregroundStyle(palette.muted)
                 ForEach(Array(state.counts.headerLine().enumerated()), id: \.offset) { _, item in
-                    Text(item.label).font(PanelType.mono(20, .bold)).foregroundStyle(chipColor(item))
+                    Text(item.label).font(PanelType.mono(20, .bold)).foregroundStyle(chipColor(item.status))
                 }
                 if state.hiddenByUser > 0 {
                     Text("\(state.hiddenByUser) hidden").font(PanelType.mono(20, .bold)).foregroundStyle(palette.muted)
@@ -38,9 +38,9 @@ struct SessionsColumn: View {
         .frame(width: 1640, height: 720, alignment: .topLeading)
     }
 
-    private func chipColor(_ item: (label: String, status: SessionStatus)) -> Color {
-        if item.label.hasPrefix("+") || item.status == .idle || item.status == .unknown { return palette.muted }
-        return ThemePalette.status(item.status)
+    /// Spec 2026-09-23 §7: waiting, blocked and idle in their colours; busy, shell and unknown muted.
+    private func chipColor(_ status: SessionStatus) -> Color {
+        status == .waiting || status == .blocked || status == .idle ? palette.statusColor(status) : palette.muted
     }
 
     /// Spec 2026-09-23 §4.2: the values one card draws, read here so the card's body observes nothing.

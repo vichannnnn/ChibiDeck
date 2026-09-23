@@ -13,10 +13,11 @@ struct CardInput: Equatable {
     let handoffStage: HandoffStage?
 }
 
-/// Spec 2026-09-07 §2.4 and Plan 4 §5: one 388×300 card. Rows: status + elapsed, name, repo@branch, `you:`, `claude:`, tasks,
-/// context bar with its label, model and effort chips and the answer pill. Waiting cards get the yellow border and glow, blocked cards
-/// the red border, unless dismissed. Handoff indicator §A: a card with a running handoff shows `HANDOFF · reply/clear/paste`
-/// in the accent with an accent border and no answer pill.
+/// Spec 2026-09-07 §2.4, Plan 4 §5 and spec 2026-09-23 §3.2, §7: one 388×300 card. Rows: status + elapsed, title (up to two
+/// lines), repo@branch, `claude:` (two lines, one with a tasks line), tasks, context bar with its label, model and effort
+/// chips and the answer pill. Colour marks what waits for the user (waiting, blocked, idle); work in progress stays quiet.
+/// Waiting cards get the yellow border and glow, blocked cards the red border, unless dismissed. Handoff indicator §A:
+/// a card with a running handoff shows `HANDOFF · reply/clear/paste` in the accent with an accent border and no answer pill.
 /// Plan 6 §3: a half-second press opens the card menu.
 struct SessionCard: View, Equatable {
     @Environment(\.palette) private var palette
@@ -28,8 +29,11 @@ struct SessionCard: View, Equatable {
 
     private var session: Session { input.session }
     private var detail: SessionDetail { input.detail }
-    private var statusColor: Color { ThemePalette.status(session.status) }
-    private var isDim: Bool { session.status == .idle || session.status == .unknown }
+    private var statusColor: Color { palette.statusColor(session.status) }
+    /// Spec 2026-09-23 §7: only an unknown session dims; idle waits for the user's next message.
+    private var isDim: Bool { session.status == .unknown }
+    /// Spec 2026-09-23 §7: the statuses drawn in colour and bold.
+    private var isLoud: Bool { session.status == .waiting || session.status == .blocked || session.status == .idle }
 
     var body: some View {
         Button(action: onTap) {
@@ -41,7 +45,7 @@ struct SessionCard: View, Equatable {
                         Text(stage.label).font(PanelType.mono(17)).foregroundStyle(palette.accent).lineLimit(1)
                     } else {
                         Circle().fill(statusColor).frame(width: 12, height: 12)
-                        Text(statusWord).font(PanelType.mono(20, .bold)).foregroundStyle(isDim ? palette.muted : statusColor)
+                        Text(statusWord).font(PanelType.mono(20, isLoud ? .bold : .regular)).foregroundStyle(isLoud ? statusColor : palette.muted)
                         if session.status == .waiting, let reason = session.waitingFor {
                             Text("· \(reason)").font(PanelType.mono(17)).foregroundStyle(palette.muted).lineLimit(1)
                         }
@@ -50,10 +54,10 @@ struct SessionCard: View, Equatable {
                     Text(PanelFormat.elapsedShort(session.elapsed(at: input.now))).font(PanelType.mono(17)).foregroundStyle(palette.muted)
                 }
                 .frame(height: 26)
-                Text(session.name).font(PanelType.mono(26, .bold)).lineLimit(1).truncationMode(.tail).padding(.top, 6)
+                Text(detail.title ?? session.name).font(PanelType.mono(24, .bold)).lineLimit(2).truncationMode(.tail)   // spec 2026-09-23 §3.2
+                    .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
                 Text(repoLine).font(PanelType.mono(17)).foregroundStyle(palette.muted).lineLimit(1).padding(.top, 2)
-                promptLine("you:", detail.lastUserPrompt).padding(.top, 10)
-                promptLine("claude:", detail.lastAssistantText).padding(.top, 4)
+                claudeLine.padding(.top, 10)
                 Spacer(minLength: 0)
                 if !detail.tasks.isEmpty {
                     Text(tasksLine).font(PanelType.mono(17)).foregroundStyle(palette.muted).lineLimit(1).padding(.bottom, 8)
@@ -125,11 +129,12 @@ struct SessionCard: View, Equatable {
         return line
     }
 
-    private func promptLine(_ prefix: String, _ text: String?) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(prefix).font(PanelType.mono(20)).foregroundStyle(palette.muted)
-            Text(text ?? "—").font(PanelType.mono(20)).lineLimit(1).truncationMode(.tail)
-        }
+    /// Spec 2026-09-23 §3.2: the prefix runs inline so the message wraps under it across the card; two lines, one while
+    /// the tasks line shows (260 pt: 248 without it, 253 with it). `you:` lives on the sheet.
+    private var claudeLine: some View {
+        (Text("claude: ").foregroundStyle(palette.muted) + Text(detail.lastAssistantText.map(PanelFormat.singleLine) ?? "—"))
+            .font(PanelType.mono(20)).lineLimit(detail.tasks.isEmpty ? 2 : 1).truncationMode(.tail)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var borderColor: Color {

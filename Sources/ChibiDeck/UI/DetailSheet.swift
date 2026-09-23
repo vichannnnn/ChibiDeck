@@ -25,7 +25,7 @@ struct DetailSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 18) {
                 pill("‹ Back", target: .sheetBack, background: palette.line, foreground: palette.text)
-                Text(session.name).font(PanelType.mono(44, .heavy)).tracking(-1).lineLimit(1).minimumScaleFactor(0.6)
+                Text(detail.title ?? session.name).font(PanelType.mono(44, .heavy)).tracking(-1).lineLimit(1).minimumScaleFactor(0.6)
                 statusPill
                 Spacer()
                 VStack(alignment: .trailing, spacing: 8) {
@@ -176,7 +176,7 @@ struct DetailSheet: View {
 
     private var statusPill: some View {
         let text = session.status == .waiting ? "WAITING · \(session.waitingFor ?? "input needed")" : session.status.rawValue.uppercased()
-        let color = ThemePalette.status(session.status)
+        let color = palette.statusColor(session.status)
         return Text(text).font(PanelType.mono(24, .bold)).padding(.horizontal, 18).padding(.vertical, 8)
             .background(session.status == .waiting ? ThemePalette.waiting : color.opacity(0.2))
             .foregroundStyle(session.status == .waiting ? Color(hex: "#1A1400") : color)
@@ -184,7 +184,8 @@ struct DetailSheet: View {
     }
 
     private var metaLine: String {
-        var parts = [PanelFormat.modelLabel(detail.modelName)]
+        var parts = detail.title == nil ? [] : [session.name]                       // spec 2026-09-23 §3.3: the name, once the title took the header
+        parts.append(PanelFormat.modelLabel(detail.modelName))
         if let effort = detail.effort { parts.append(effort) }                       // Plan 4 §5.1: `Fable 5.1 · max · 9h 11m · …`
         parts += [PanelFormat.elapsed(session.elapsed(at: now)), PanelFormat.homeRelative(session.cwd, home: ClaudePaths.home.path)]
         if session.kind == .background { parts.append("background · \(detail.jobState ?? session.status.rawValue)") }
