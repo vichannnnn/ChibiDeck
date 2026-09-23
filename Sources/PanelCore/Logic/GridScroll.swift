@@ -28,8 +28,8 @@ public enum GridScroll {
     public static func snap(_ offset: Double, speed: Double, count: Int) -> Double {
         let rowsDown = clamp(offset, count: count) / rowPitch
         let target: Double
-        if speed >= flickSpeed { target = (rowsDown - 1e-6).rounded(.up) }
-        else if speed <= -flickSpeed { target = (rowsDown + 1e-6).rounded(.down) }
+        if speed >= flickSpeed { target = rowsDown.rounded(.down) + 1 }
+        else if speed <= -flickSpeed { target = rowsDown.rounded(.up) - 1 }
         else { target = rowsDown.rounded() }
         return clamp(target * rowPitch, count: count)
     }

@@ -31,6 +31,10 @@ import Testing
         #expect(GridScroll.snap(600, speed: -600, count: 13) == 316)
         #expect(GridScroll.snap(290, speed: -900, count: 13) == 0)
         #expect(GridScroll.snap(20, speed: 900, count: 8) == 0)   // nothing to scroll to
+        #expect(GridScroll.snap(0, speed: 700, count: 13) == 316)     // from a row boundary, too
+        #expect(GridScroll.snap(632, speed: -700, count: 13) == 316)
+        #expect(GridScroll.snap(316, speed: 700, count: 13) == 632)
+        #expect(GridScroll.snap(316, speed: -700, count: 13) == 0)
     }
 
     @Test func countsSessionsWhollyAboveAndBelowTheViewport() {
