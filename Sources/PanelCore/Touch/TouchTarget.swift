@@ -40,27 +40,39 @@ public enum TouchTarget: Hashable, Sendable {
     /// Character select §6: a tile — the theme id it picks — and the backdrop that closes the screen.
     case characterPick(String)
     case characterSelectClose
+    /// Spec 2026-09-23 §8.3: the grid viewport between and behind the cards (z −1); a drag that starts here scrolls
+    /// the grid, a tap does nothing.
+    case sessionsGrid
 }
 
 /// A tappable rectangle on the 2560×720 canvas. Higher `z` wins where regions overlap (the sheet over the cards,
-/// its pills over the sheet).
+/// its pills over the sheet). Spec 2026-09-23 §8.7: with a `clip`, only the part of `frame` inside it can be hit.
 public struct TouchRegion: Equatable, Sendable {
     public let target: TouchTarget
     public let frame: CGRect
     public let z: Int
+    public let clip: CGRect?
 
-    public init(target: TouchTarget, frame: CGRect, z: Int = 0) {
+    public init(target: TouchTarget, frame: CGRect, z: Int = 0, clip: CGRect? = nil) {
         self.target = target
         self.frame = frame
         self.z = z
+        self.clip = clip
     }
 
     public static func == (lhs: TouchRegion, rhs: TouchRegion) -> Bool {
-        lhs.target == rhs.target &&
-        lhs.frame.origin.x == rhs.frame.origin.x &&
-        lhs.frame.origin.y == rhs.frame.origin.y &&
-        lhs.frame.size.width == rhs.frame.size.width &&
-        lhs.frame.size.height == rhs.frame.size.height &&
-        lhs.z == rhs.z
+        lhs.target == rhs.target && same(lhs.frame, rhs.frame) && lhs.z == rhs.z && sameClip(lhs.clip, rhs.clip)
+    }
+
+    private static func same(_ a: CGRect, _ b: CGRect) -> Bool {
+        a.origin.x == b.origin.x && a.origin.y == b.origin.y && a.size.width == b.size.width && a.size.height == b.size.height
+    }
+
+    private static func sameClip(_ a: CGRect?, _ b: CGRect?) -> Bool {
+        switch (a, b) {
+        case (nil, nil): true
+        case let (x?, y?): same(x, y)
+        default: false
+        }
     }
 }

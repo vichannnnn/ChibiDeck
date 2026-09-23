@@ -69,4 +69,28 @@ import Testing
         #expect(HitTester.hit(x: 200, y: 180, regions: [Self.mascot, backdrop, tile]) == .characterSelectClose)   // the mascot is under the backdrop
         #expect(HitTester.hit(x: 500, y: 600, regions: [Self.mascot, backdrop, tile]) == .characterSelectClose)
     }
+
+    @Test func aClippedRegionIsHitOnlyInsideItsClip() {              // spec 2026-09-23 §8.7
+        let viewport = CGRect(x: 940, y: 80, width: 1600, height: 620)
+        let scrolledUp = TouchRegion(target: .card("s1"), frame: CGRect(x: 940, y: -236, width: 388, height: 300), clip: viewport)
+        #expect(HitTester.hit(x: 1000, y: 40, regions: [scrolledUp]) == nil)      // over the header: outside the clip
+        let partly = TouchRegion(target: .card("s2"), frame: CGRect(x: 940, y: 600, width: 388, height: 300), clip: viewport)
+        #expect(HitTester.hit(x: 1000, y: 650, regions: [partly]) == .card("s2"))
+        #expect(HitTester.hit(x: 1000, y: 710, regions: [partly]) == nil)         // below the viewport
+    }
+
+    @Test func theGridSitsUnderItsCards() {
+        let grid = TouchRegion(target: .sessionsGrid, frame: CGRect(x: 940, y: 80, width: 1600, height: 620), z: -1)
+        #expect(HitTester.hit(x: 1000, y: 200, regions: [Self.card, grid]) == .card("s1"))
+        #expect(HitTester.hit(x: 1000, y: 200, regions: [grid, Self.card]) == .card("s1"))
+        #expect(HitTester.hit(x: 1336, y: 200, regions: [Self.card, grid]) == .sessionsGrid)   // the gutter
+    }
+
+    @Test func equalityIncludesTheClip() {
+        let frame = CGRect(x: 940, y: 80, width: 1600, height: 620)
+        let a = TouchRegion(target: .sessionsGrid, frame: frame)
+        #expect(a == TouchRegion(target: .sessionsGrid, frame: frame))
+        #expect(a != TouchRegion(target: .sessionsGrid, frame: frame, clip: CGRect(x: 0, y: 0, width: 10, height: 10)))
+        #expect(TouchRegion(target: .card("a"), frame: frame, clip: frame) == TouchRegion(target: .card("a"), frame: frame, clip: frame))
+    }
 }

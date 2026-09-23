@@ -159,6 +159,8 @@ final class AppModel {
             settings.themeId = id                                      // Character select §6: the same persisted value tap-to-cycle writes
         case .characterSelectClose:
             ui.closeCharacterSelect()
+        case .sessionsGrid:
+            break                                                      // spec 2026-09-23 §8.3: only drags start here
         case .card(let id):
             guard ui.menuSessionId == nil else { return }               // Plan 6 §5: while a menu is open only its rows and backdrop act
             guard collector.state.session(id: id) != nil else { return }
