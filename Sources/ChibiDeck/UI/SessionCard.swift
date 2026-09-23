@@ -2,7 +2,9 @@ import SwiftUI
 import PanelCore
 
 /// Spec 2026-09-23 §4.2: everything one card draws, compared by value, so a card redraws only when its own session,
-/// detail, pill or handoff stage changes. `SessionsColumn` builds it; the card reads nothing from `AppModel` in `body`.
+/// detail, now, attention, pill or handoff stage changes (`CardInput`'s synthesized `==` covers all six).
+/// `SessionsColumn` builds it; the card reads nothing from `AppModel` in `body`, only the palette from the
+/// environment, which still redraws it on a theme change — `.equatable()` does not shield environment reads.
 struct CardInput: Equatable {
     let session: Session
     let detail: SessionDetail

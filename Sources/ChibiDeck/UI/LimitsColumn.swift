@@ -32,7 +32,8 @@ struct LimitsColumn: View {
 
 /// One limit row (spec §2.3): title and percent, bar, `resets in …` caption with the optional `~full by …`.
 /// Spec 2026-09-23 §4.1: a reset under 24 h away counts down to the second in its own `TimelineView`; the rest of the
-/// panel changes at most once a minute.
+/// panel republishes only when a field actually differs — the state carries the minute, not the second, but a feed
+/// write can still move a percent or a reset time inside that minute.
 struct LimitRowView: View, Equatable {
     @Environment(\.palette) private var palette
     let row: LimitRow

@@ -29,4 +29,4 @@ python3 -m unittest discover -s Scripts/mascots -p 'test_*.py'
 
 ## Reading the review sheet
 
-`<id>-sheet.png` shows every frame of both tiers at 3×. Frame 3 of cruise is the blink; frames 4–7 carry the 1-px nod; odd frames of top are the hop. `<id>.gif` plays the two tiers side by side at 4 fps; `<id>-loop.gif` is the transparent single-box loop the README header uses (`docs/images/mage.gif`). `contact.png` shows `cruise[0]` of every rendered mascot at the panel's 280 px on its theme background.
+`<id>-sheet.png` shows every frame of both tiers at 3×. Frame 3 of cruise is the blink; frames 4–7 carry the 1-px nod; odd frames of top are the hop. `<id>.gif` plays the two tiers side by side at 4 fps; `<id>-loop.gif` is the transparent single-box loop the README header uses (`docs/images/mage.gif`). `contact.png` shows `cruise[0]` of every rendered mascot at a 280 px preview of the panel's 340×335 size, on its theme background.

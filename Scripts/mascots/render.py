@@ -106,7 +106,7 @@ def loop_gif(sprite: dict, theme: dict, out: Path, box: int = 240, transparent: 
 
 
 def contact(sprites: list, out: Path, box: int = 280) -> None:
-    """cruise[0] of each (sprite, theme) at panel size on its theme background, with name and accent swatch."""
+    """cruise[0] of each (sprite, theme) at a 280 px preview of the panel's 340×335 size, on its theme background, with name and accent swatch."""
     pad, label = 20, 44
     n = max(1, len(sprites))
     im = Image.new("RGBA", (n * (box + pad) + pad, box + label + 2 * pad), (30, 30, 30, 255))
@@ -123,7 +123,7 @@ def contact(sprites: list, out: Path, box: int = 280) -> None:
 
 
 def roster(sprites: list, out: Path, box: int = 280, label: int = 40, pad: int = 16, cols: int = 3) -> None:
-    """The README roster: cruise[0] of every mascot at the panel's 280 px on its theme, three columns, a labelled row each."""
+    """The README roster: cruise[0] of every mascot at a 280 px preview of the panel's 340×335 size, on its theme, three columns, a labelled row each."""
     rows = -(-len(sprites) // cols)
     im = Image.new("RGBA", (cols * (box + pad) + pad, rows * (box + label + pad) + pad), (30, 30, 30, 255))
     d = ImageDraw.Draw(im)

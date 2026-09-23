@@ -10,7 +10,7 @@
 | `characters.py` | Mage + the `RECIPES` registry | `RECIPES` order = tap order; the chibi roster is appended from `chibi/__init__.py` |
 | `chibi/<id>.py` | one module per character | `recipe() -> Recipe`; the docstring is the design and its revision history |
 | `build.py` | `build`, `check`, `render`, `docs` | stdlib for build/check; Pillow for render/docs |
-| `render.py` | review images | `sheet` (all frames at 3×), `gif` (both tiers side by side), `loop_gif` (one transparent box, `<id>-loop.gif`, the README header), `contact` (cruise[0] of every mascot at 280 px), `roster` (the README grid) |
+| `render.py` | review images | `sheet` (all frames at 3×), `gif` (both tiers side by side), `loop_gif` (one transparent box, `<id>-loop.gif`, the README header), `contact` (cruise[0] of every mascot, a 280 px preview of the panel's 340×335), `roster` (the README grid) |
 
 `Recipe(id, name, colours, body, front=[...], back=[...])`: `back` parts draw behind the body (tails, capes, wings,
 a mask tucked behind the hair), the body next, `front` parts over it in order, then the face, then the hop and the
@@ -62,8 +62,8 @@ Grids are drawn as text, one string per row, and pasted at `(x0, y0)`; `mirror()
 
 ## Review checklist (run on the sheet before the user sees anything)
 
-- R1 Silhouette reads at 280 px on the theme background (`contact.png`): head, hair shape and one accessory
-  recognisable at arm's length.
+- R1 Silhouette reads at the panel's 340×335 on the theme background (`contact.png`, a 280 px preview of it): head,
+  hair shape and one accessory recognisable at arm's length.
 - R2 Smile in all 16 frames, eyes open in `top`; the blink only on `cruise[3]`.
 - R3 No holes: no background shows through body, face or dress in any frame; no stray pixels outside the outline
   except sparkles.

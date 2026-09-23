@@ -452,7 +452,7 @@ def heal_holes(g: list, max_size: int = 4) -> list:
     """Fill enclosed transparent pockets of up to `max_size` pixels with their commonest non-outline neighbour role.
 
     The 1-px nod and the bend can pinch a pixel or two between a lock and the dress; those pockets read as holes at
-    280 px. Pockets that touch a glint (a sparkle) and larger see-through windows are left alone."""
+    the panel's 340×335. Pockets that touch a glint (a sparkle) and larger see-through windows are left alone."""
     seen = [[False] * COLS for _ in range(ROWS)]
     stack = [(r, c) for r in range(ROWS) for c in (0, COLS - 1) if g[r][c] is None]
     stack += [(r, c) for c in range(COLS) for r in (0, ROWS - 1) if g[r][c] is None]
