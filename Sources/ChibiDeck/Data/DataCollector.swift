@@ -37,6 +37,7 @@ final class DataCollector {
     private var sessionFileCache: [String: SessionFileRecord?] = [:]    // nil value: unparseable until its stamp moves
     private var feedGate = ChangeGate()
     private var feedCache: [String: StatuslineRecord?] = [:]
+    private var feedObserveGate = ChangeGate()    // finding Important 1: canary evidence recorded once per write, not once per tick
     private var transcriptGate = ChangeGate()
     private var transcriptPaths: [String: String] = [:]          // session id → transcript path, for `retain`
     private var canary = FormatCanary()
@@ -331,17 +332,24 @@ final class DataCollector {
             paths.insert(url.path)
             guard let stamp = ClaudePaths.stamp(url), cal.isDateInToday(stamp.modified),
                   let rec = cachedFeedRecord(at: url, stamp: stamp) else { continue }
-            if Date().timeIntervalSince(stamp.modified) < FormatCanary.window {           // spec 2026-09-23 §9.1: fresh feed files
+            // spec 2026-09-23 §9.1: fresh feed files, and only once per write (finding Important 1) — `feedObserveGate`
+            // keeps the stamp last observed, so a file re-read from cache on every tick isn't re-observed until it moves.
+            if Date().timeIntervalSince(stamp.modified) < FormatCanary.window, feedObserveGate.shouldRead(url.path, stamp: stamp) {
                 let now = Date()
                 canary.observe(.feedContext, present: rec.contextWindowSize != nil && rec.totalInputTokens != nil, at: now)
                 canary.observe(.feedModel, present: (rec.modelDisplayName ?? rec.modelId) != nil, at: now)
                 canary.observe(.feedCost, present: rec.totalCostUSD != nil, at: now)
-                if cacheHasLimits { canary.observe(.feedRateLimits, present: rec.rateLimits != nil, at: now) }
+                // A session's first payload has no rate_limits until its first API response; treat that as no evidence
+                // yet rather than the field going missing (finding Important 1: was a false "feed has no rate_limits").
+                let sawAPIResponse = (rec.totalInputTokens ?? 0) > 0 || (rec.totalCostUSD ?? 0) > 0
+                if cacheHasLimits, sawAPIResponse { canary.observe(.feedRateLimits, present: rec.rateLimits != nil, at: now) }
+                feedObserveGate.markRead(url.path, stamp: stamp)
             }
             if let limits = rec.rateLimits { adoptLimits(limits) }
             if let cost = rec.totalCostUSD { costs[rec.sessionId] = cost }
         }
         feedGate.retain(paths)
+        feedObserveGate.retain(paths)
         feedCache = feedCache.filter { paths.contains($0.key) }
         inputs.feedCostsToday = costs
     }
