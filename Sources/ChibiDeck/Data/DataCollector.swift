@@ -29,7 +29,7 @@ final class DataCollector {
     // Spec 2026-09-23 §4.3: the listing's clock, the event that asks for one early, and the file gates.
     private var lastListingAttempt: Date?
     private var listingWanted = false
-    private var knownSessionFiles: Set<String> = []
+    private var knownSessionFiles: Set<String>?
     private var sessionFileGate = ChangeGate()
     private var sessionFileCache: [String: SessionFileRecord?] = [:]    // nil value: unparseable until its stamp moves
     private var feedGate = ChangeGate()
@@ -207,7 +207,7 @@ final class DataCollector {
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: ClaudePaths.sessionsDir.path)) ?? []).filter { $0.hasSuffix(".json") }
         let nameSet = Set(names)
         if nameSet != knownSessionFiles {                                  // spec 2026-09-23 §4.3: a session started or exited
-            if !knownSessionFiles.isEmpty { listingWanted = true }
+            if knownSessionFiles != nil { listingWanted = true }            // nil only before the first read
             knownSessionFiles = nameSet
         }
         var paths: Set<String> = []
@@ -329,10 +329,10 @@ final class DataCollector {
         // Spec 2026-09-23 §4.3: an unchanged transcript keeps its last summary (`mergeDetail` with nil keeps everything).
         let stamp = ClaudePaths.stamp(transcriptURL)
         transcriptPaths[sessionId] = transcriptURL.path
+        let readTranscript = transcriptGate.shouldRead(transcriptURL.path, stamp: stamp) || inputs.details[sessionId] == nil
         var transcript: TranscriptSummary?
-        if transcriptGate.shouldRead(transcriptURL.path, stamp: stamp) || inputs.details[sessionId] == nil {
+        if readTranscript {
             transcript = await Task.detached(priority: .utility) { TranscriptTail.read(url: transcriptURL) }.value
-            transcriptGate.markRead(transcriptURL.path, stamp: stamp)
         }
         // Plan 3 §9.1: a tool-heavy session's last human prompt can lie megabytes before the end. Read further back
         // once (per ten minutes), and only while no prompt is known; once found it sticks through `mergeDetail`.
@@ -346,6 +346,9 @@ final class DataCollector {
         }
         let tasks = TaskListReader.read(directory: ClaudePaths.tasksDir.appendingPathComponent(sessionId))
         let branch = await gitBranch(for: session.cwd, force: force)
+        // Spec 2026-09-23 §4.3: mark with the stamp taken before the read, right before its summary is merged, so the last
+        // refresh to merge is the last to mark; a failed read (nil) is not marked and is retried (spec §12).
+        if readTranscript, transcript != nil { transcriptGate.markRead(transcriptURL.path, stamp: stamp) }
         inputs.details[sessionId] = StateBuilder.mergeDetail(existing: inputs.details[sessionId] ?? .empty, feed: feed, transcript: transcript, tasks: tasks, branch: branch)
     }
 
