@@ -2,7 +2,7 @@ import SwiftUI
 import PanelCore
 
 /// Spec 2026-09-07 §2.2 as amended by spec 2026-09-23 §5: character at 5× (tap = next theme; Character select §3: hold = the character select), clock, date.
-/// Plan 3 §7: up to two permission lines in blocked red under the `stale` slot (y 360 and 384), only while something is denied.
+/// Plan 3 §7: up to two permission lines in blocked red under the `stale` slot (y 415 and 439 since spec 2026-09-23 §5), only while something is denied.
 struct LeftColumn: View, Equatable {
     @Environment(AppModel.self) private var model
     @Environment(\.palette) private var palette
