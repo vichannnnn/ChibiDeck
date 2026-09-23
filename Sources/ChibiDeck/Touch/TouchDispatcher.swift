@@ -6,6 +6,7 @@ import PanelCore
 /// set by hand with `defaults write` if taps land off.
 /// Plan 6 §3: a half-second hold on a card is a long-press — noticed at the recogniser's deadline while the finger
 /// rests, or on a late release — and opens the card's menu. Sheet swipe §B: a vertical flick over the sheet pages its text.
+/// Spec 2026-09-23 §8.3: a vertical drag that starts on a card or the grid scrolls the grid.
 @MainActor
 final class TouchDispatcher {
     static let canvas = (width: 2560.0, height: 720.0)
@@ -14,11 +15,19 @@ final class TouchDispatcher {
     private let recognizer = TapRecognizer()
     private let longPress = LongPressRecognizer()
     private let swipes = SwipeRecognizer()
+    private let drags = ScrollDragRecognizer()
+    /// Whether the current drag scrolls the grid, decided at its begin by the target under the down point.
+    private var draggingGrid = false
     private var fireTask: Task<Void, Never>?
 
     init(model: AppModel) { self.model = model }
 
     func handle(_ event: TouchEvent) {
+        if event.kind == .down, draggingGrid {                     // spec 2026-09-23 §8.3: the previous drag's up was lost
+            model.endGridDrag(speed: 0)
+            draggingGrid = false
+        }
+        if let drag = drags.handle(event) { scroll(drag) }
         if let press = longPress.handle(event) { open(press) }        // Plan 6 §3: a late release
         if let swipe = swipes.handle(event) { page(swipe) }           // Sheet swipe §B
         scheduleFire()
@@ -66,6 +75,29 @@ final class TouchDispatcher {
         case .card(let id), .cardAnswer(let id): model.perform(.cardMenu(id))
         case .mascot: model.perform(.characterSelect)                          // Character select §3
         default: model.ui.noteTouch()
+        }
+    }
+
+    /// Spec 2026-09-23 §8.3: the grid follows a drag that began over a card, its pill or the grid itself.
+    private func scroll(_ drag: ScrollDrag) {
+        switch drag {
+        case .began(let rawX, let rawY, let travel):
+            let point = CoordinateMapper.map(rawX: rawX, rawY: rawY, to: Self.canvas, calibration: model.settings.touchCalibration)
+            let target = HitTester.hit(x: point.x, y: point.y, regions: model.touchRegions)
+            touchLog.info("drag from canvas=(\(Int(point.x)),\(Int(point.y))) target=\(target.map { String(describing: $0) } ?? "none", privacy: .public)")
+            switch target {
+            case .card, .cardAnswer, .sessionsGrid:
+                draggingGrid = true
+                model.beginGridDrag()
+                model.dragGrid(travel: travel)
+            default:
+                draggingGrid = false
+            }
+        case .moved(let travel):
+            if draggingGrid { model.dragGrid(travel: travel) }
+        case .ended(_, let speed):
+            if draggingGrid { model.endGridDrag(speed: speed) }
+            draggingGrid = false
         }
     }
 }

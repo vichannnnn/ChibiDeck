@@ -14,6 +14,7 @@ final class PanelController {
     private var preview: PreviewWindowController?
     private let reader = HIDTouchReader()
     private lazy var dispatcher = TouchDispatcher(model: model)
+    private lazy var wheel = ScrollWheelMonitor(model: model)             // spec 2026-09-23 §8.4
     private var permissionTimer: Timer?
     private var edgePresent = false
     private var inputMonitoringRequested = false
@@ -29,6 +30,7 @@ final class PanelController {
         }
         locator.onChange = { [weak self] screen in self?.apply(screen: screen) }
         locator.start()
+        wheel.start()
     }
 
     /// Menu bar: opens or raises the preview window at any time.
