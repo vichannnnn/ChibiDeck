@@ -22,8 +22,8 @@ import Testing
         #expect(!SessionStatus.idle.isActive)
     }
 
-    @Test func sortRankFollowsSpecOrder() {
-        let ranks = [SessionStatus.waiting, .blocked, .busy, .shell, .idle, .unknown].map(\.sortRank)
+    @Test func sortRankPutsWhatWaitsForTheUserFirst() {        // spec 2026-09-23 §8.1
+        let ranks = [SessionStatus.waiting, .blocked, .idle, .busy, .shell, .unknown].map(\.sortRank)
         #expect(ranks == [0, 1, 2, 3, 4, 5])
     }
 }

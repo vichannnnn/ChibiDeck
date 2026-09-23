@@ -9,8 +9,4 @@ public enum SessionSorter {
             return a.name < b.name
         }
     }
-
-    public static func cap(_ sorted: [Session], limit: Int = 8) -> (shown: [Session], hidden: Int) {
-        (Array(sorted.prefix(limit)), max(0, sorted.count - limit))
-    }
 }

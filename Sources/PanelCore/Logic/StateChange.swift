@@ -19,11 +19,9 @@ public struct SessionSignature: Sendable, Equatable {
 
 public struct StateSignature: Sendable, Equatable {
     public let sessions: [SessionSignature]
-    public let hiddenSessionCount: Int
 
-    public init(sessions: [SessionSignature], hiddenSessionCount: Int) {
+    public init(sessions: [SessionSignature]) {
         self.sessions = sessions
-        self.hiddenSessionCount = hiddenSessionCount
     }
 }
 
@@ -31,6 +29,6 @@ public enum StateChange {
     /// Spec §4.6: auto-dim's quiet clock restarts on a session state change only — not on a moving context
     /// percentage, a new cost, fresher limits or the stale flag flipping.
     public static func sessionSignature(_ state: PanelState) -> StateSignature {
-        StateSignature(sessions: state.allSessions.map(SessionSignature.init), hiddenSessionCount: state.hiddenSessionCount)
+        StateSignature(sessions: state.allSessions.map(SessionSignature.init))
     }
 }

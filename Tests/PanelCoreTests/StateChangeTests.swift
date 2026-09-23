@@ -48,13 +48,4 @@ import Testing
         extra.listedSessions.append(Self.session("c", pid: 3, .idle))
         #expect(StateChange.sessionSignature(StateBuilder.build(extra, now: Self.now)) != plain)
     }
-
-    @Test func hiddenSessionCountIsPartOfTheSignature() {
-        var nine = RawInputs(listedSessions: (0..<9).map { Self.session("s\($0)", pid: 100 + $0, .idle) })
-        let a = StateChange.sessionSignature(StateBuilder.build(nine, now: Self.now))
-        nine.listedSessions.removeLast()
-        let b = StateChange.sessionSignature(StateBuilder.build(nine, now: Self.now))
-        #expect(a.hiddenSessionCount == 1 && b.hiddenSessionCount == 0)
-        #expect(a != b)
-    }
 }

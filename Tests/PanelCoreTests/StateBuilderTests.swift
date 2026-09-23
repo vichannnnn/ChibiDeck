@@ -63,12 +63,19 @@ import Testing
         #expect(StateBuilder.build(inputs, now: Self.now).isStale)
     }
 
-    @Test func capsAtEight() {
+    @Test func everySessionIsOnTheGrid() {                      // spec 2026-09-23 §8.1: no cap
         var inputs = Self.inputs
         inputs.listedSessions = (0..<11).map { Self.session("s\($0)", pid: 100 + $0, .idle) }
         inputs.filePatches = [:]
         let state = StateBuilder.build(inputs, now: Self.now)
-        #expect(state.sessions.count == 8 && state.hiddenSessionCount == 3 && state.allSessions.count == 11)
+        #expect(state.sessions.count == 11 && state.allSessions.count == 11)
+    }
+
+    @Test func idleSortsAheadOfWorkInProgress() {               // spec 2026-09-23 §8.1
+        var inputs = Self.inputs
+        inputs.listedSessions = [Self.session("busy", pid: 1, .busy), Self.session("shell", pid: 2, .shell), Self.session("idle", pid: 3, .idle)]
+        inputs.filePatches = [:]
+        #expect(StateBuilder.build(inputs, now: Self.now).sessions.map(\.name) == ["idle", "busy", "shell"])
     }
 
     @Test func mergeDetailPrefersFeedOverTranscript() {
@@ -184,7 +191,6 @@ import Testing
         #expect(!state.sessions.contains { $0.sessionId == "id-b" })
         #expect(state.allSessions.count == 2 && state.sessions.count == 2)
         #expect(state.hiddenByUser == 1)                      // an id that is not listed counts for nothing
-        #expect(state.hiddenSessionCount == 0)                // the "+N more" cap is a different number
         #expect(state.counts.waiting == 0)                    // b was the waiting one
         #expect(state.needsYou?.sessionId == "id-bg")         // the blocked background agent is next in line
         #expect(StateBuilder.build(Self.inputs, now: Self.now).hiddenByUser == 0)

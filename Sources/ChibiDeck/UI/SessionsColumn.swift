@@ -14,7 +14,7 @@ struct SessionsColumn: View {
             HStack(spacing: 24) {
                 Text("Sessions").sectionLabel(palette)
                 Text("\(state.allSessions.count) live").font(PanelType.mono(20, .bold)).foregroundStyle(palette.muted)
-                ForEach(Array(state.counts.headerLine(hiddenCount: state.hiddenSessionCount).enumerated()), id: \.offset) { _, item in
+                ForEach(Array(state.counts.headerLine().enumerated()), id: \.offset) { _, item in
                     Text(item.label).font(PanelType.mono(20, .bold)).foregroundStyle(chipColor(item))
                 }
                 if state.hiddenByUser > 0 {

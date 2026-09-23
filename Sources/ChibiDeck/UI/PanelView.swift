@@ -88,7 +88,7 @@ struct PanelView: View {
         .onChange(of: state.allSessions.map(\.sessionId)) { _, ids in
             if let id = model.ui.selectedSessionId, !ids.contains(id) { model.closeSheet() }
         }
-        .onChange(of: state.sessions.map(\.sessionId)) { _, ids in                 // Plan 6 §5: the card left the grid (exited, hidden, or sorted past the eighth slot)
+        .onChange(of: state.sessions.map(\.sessionId)) { _, ids in                 // Plan 6 §5: the card left the grid (exited or hidden)
             if let id = model.ui.menuSessionId, !ids.contains(id) { model.closeMenu() }
         }
         .task(id: dimKey) {

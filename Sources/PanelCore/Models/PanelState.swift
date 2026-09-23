@@ -30,20 +30,17 @@ public struct Counts: Sendable, Equatable {
         return out.map { (label: $0.0, status: $0.1) }
     }
 
-    /// Spec 2026-09-07 §2.4 header order: waiting, blocked, busy, shell, idle, unknown, then `+N more`.
-    public func headerLine(hiddenCount: Int) -> [(label: String, status: SessionStatus)] {
-        var out: [(String, SessionStatus)] = []
-        for (n, status) in [(waiting, SessionStatus.waiting), (blocked, .blocked), (busy, .busy), (shell, .shell), (idle, .idle), (unknown, .unknown)] where n > 0 {
-            out.append(("\(n) \(status.rawValue)", status))
-        }
-        if hiddenCount > 0 { out.append(("+\(hiddenCount) more", .unknown)) }
-        return out.map { (label: $0.0, status: $0.1) }
+    /// Spec 2026-09-23 §8.1 (amends 2026-09-07 §2.4): the card order — waiting, blocked, idle, busy, shell, unknown;
+    /// only non-zero groups. The grid scrolls, so there is no `+N more`.
+    public func headerLine() -> [(label: String, status: SessionStatus)] {
+        [(waiting, SessionStatus.waiting), (blocked, .blocked), (idle, .idle), (busy, .busy), (shell, .shell), (unknown, .unknown)]
+            .filter { $0.0 > 0 }
+            .map { (label: "\($0.0) \($0.1.rawValue)", status: $0.1) }
     }
 }
 
 public struct PanelState: Sendable, Equatable {
     public var sessions: [Session]
-    public var hiddenSessionCount: Int
     public var allSessions: [Session]
     public var details: [String: SessionDetail]
     public var limits: Limits
@@ -68,11 +65,11 @@ public struct PanelState: Sendable, Equatable {
     /// Plan 4 §5.4: sessions the user hid from the sheet; absent from every list above, counted here for the header.
     public var hiddenByUser: Int
 
-    public init(sessions: [Session], hiddenSessionCount: Int, allSessions: [Session], details: [String: SessionDetail], limits: Limits,
+    public init(sessions: [Session], allSessions: [Session], details: [String: SessionDetail], limits: Limits,
                 today: DailyActivity?, todayCostUSD: Double?, counts: Counts, needsYou: Session?, mascotPose: MascotPose, isStale: Bool,
                 dismissed: Set<DismissKey> = [], now: Date, forecasts: [String: Date] = [:], burn: BurnSummary? = nil,
                 burnChart: BurnChart? = nil, todayTotals: TodayTotals? = nil, burnIsStale: Bool = false, hiddenByUser: Int = 0) {
-        self.sessions = sessions; self.hiddenSessionCount = hiddenSessionCount; self.allSessions = allSessions; self.details = details
+        self.sessions = sessions; self.allSessions = allSessions; self.details = details
         self.limits = limits; self.today = today; self.todayCostUSD = todayCostUSD; self.counts = counts; self.needsYou = needsYou
         self.mascotPose = mascotPose; self.isStale = isStale; self.dismissed = dismissed; self.now = now
         self.forecasts = forecasts; self.burn = burn; self.burnChart = burnChart; self.todayTotals = todayTotals
@@ -80,7 +77,7 @@ public struct PanelState: Sendable, Equatable {
     }
 
     public static func empty(now: Date) -> PanelState {
-        PanelState(sessions: [], hiddenSessionCount: 0, allSessions: [], details: [:], limits: .empty, today: nil, todayCostUSD: nil,
+        PanelState(sessions: [], allSessions: [], details: [:], limits: .empty, today: nil, todayCostUSD: nil,
                    counts: Counts(waiting: 0, busy: 0, idle: 0, blocked: 0, shell: 0, unknown: 0), needsYou: nil, mascotPose: .sleep, isStale: true, now: now)
     }
 

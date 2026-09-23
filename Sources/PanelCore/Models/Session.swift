@@ -24,14 +24,15 @@ public enum SessionStatus: String, Sendable, Equatable, CaseIterable {
     public var needsAttention: Bool { self == .waiting || self == .blocked }
     public var isActive: Bool { self == .busy || self == .shell }
 
-    /// Spec §4.2 order: waiting → blocked → busy → shell → idle → unknown.
+    /// Spec 2026-09-23 §8.1 (amends 2026-09-06 §4.2): what waits for the user first (waiting, blocked, idle), then
+    /// work in progress (busy, background agents and workflows included; shell), then unknown.
     public var sortRank: Int {
         switch self {
         case .waiting: 0
         case .blocked: 1
-        case .busy: 2
-        case .shell: 3
-        case .idle: 4
+        case .idle: 2
+        case .busy: 3
+        case .shell: 4
         case .unknown: 5
         }
     }

@@ -12,8 +12,7 @@ public enum StateBuilder {
             s.statusUpdatedAt = patch.statusUpdatedAt ?? patch.updatedAt
             return s
         }
-        let sorted = SessionSorter.sort(merged)
-        let (shown, hidden) = SessionSorter.cap(sorted, limit: 8)
+        let sorted = SessionSorter.sort(merged)                       // spec 2026-09-23 §8.1: every session, no cap
         let counts = AttentionResolver.counts(sessions: sorted, dismissed: inputs.dismissed)
         let needsYou = AttentionResolver.needsYou(sessions: sorted, dismissed: inputs.dismissed)
         let pose = MascotStateResolver.pose(sessions: sorted, dismissed: inputs.dismissed, quietHours: inputs.quietHours, now: now, calendar: calendar)
@@ -24,8 +23,7 @@ public enum StateBuilder {
         let burnChart = readyBurn.map { BurnBucketer.chart(from: $0, now: now, calendar: calendar) }
         let todayTotals = readyBurn.map { BurnBucketer.today(from: $0, now: now, calendar: calendar) }
         return PanelState(
-            sessions: shown,
-            hiddenSessionCount: hidden,
+            sessions: sorted,
             allSessions: sorted,
             details: detailsWithJobText(inputs.details, sessions: sorted, jobs: inputs.jobs),
             limits: limits,

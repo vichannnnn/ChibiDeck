@@ -16,13 +16,7 @@ import Testing
 
     @Test func sortsByStatusThenRecency() {
         let names = SessionSorter.sort(Self.mixed).map(\.name)
-        #expect(names == ["wait-new", "wait-old", "blocked", "busy-2", "busy-1", "shell", "idle-new", "idle-old", "unknown"])
-    }
-
-    @Test func capsAtEightAndCountsHidden() {
-        let (shown, hidden) = SessionSorter.cap(SessionSorter.sort(Self.mixed), limit: 8)
-        #expect(shown.count == 8 && hidden == 1)
-        #expect(shown.last?.name == "idle-old")
+        #expect(names == ["wait-new", "wait-old", "blocked", "idle-new", "idle-old", "busy-2", "busy-1", "shell", "unknown"])
     }
 
     @Test func needsYouPrefersOldestWaitingThenOldestBlocked() {
@@ -91,9 +85,9 @@ import Testing
         #expect(MascotStateResolver.pose(sessions: backgroundBlocked, dismissed: [], quietHours: off, now: now) == .top)
     }
 
-    @Test func headerLineUsesTheCardOrder() {
-        let c = Counts(waiting: 1, busy: 2, idle: 1, blocked: 1, shell: 0, unknown: 0)
-        #expect(c.headerLine(hiddenCount: 2).map(\.label) == ["1 waiting", "1 blocked", "2 busy", "1 idle", "+2 more"])
-        #expect(Counts(waiting: 0, busy: 0, idle: 0, blocked: 0, shell: 0, unknown: 0).headerLine(hiddenCount: 0).isEmpty)
+    @Test func headerLineUsesTheCardOrder() {                  // spec 2026-09-23 §8.1: idle after blocked, no `+N more`
+        let c = Counts(waiting: 1, busy: 2, idle: 1, blocked: 1, shell: 1, unknown: 0)
+        #expect(c.headerLine().map(\.label) == ["1 waiting", "1 blocked", "1 idle", "2 busy", "1 shell"])
+        #expect(Counts(waiting: 0, busy: 0, idle: 0, blocked: 0, shell: 0, unknown: 0).headerLine().isEmpty)
     }
 }
