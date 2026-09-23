@@ -10,6 +10,10 @@ public struct SessionFileRecord: Sendable, Equatable {
     public let startedAt: Date?
     public let updatedAt: Date?
     public let statusUpdatedAt: Date?
+    /// Spec 2026-09-23 §9.1: the Claude Code version that wrote the file, and the status string as written (a value
+    /// `SessionStatus` does not know becomes `.unknown` and is reported by the format check).
+    public var version: String? = nil
+    public var rawStatus: String? = nil
 }
 
 public enum SessionFileParser {
@@ -26,7 +30,9 @@ public enum SessionFileParser {
             waitingFor: o["waitingFor"] as? String,
             startedAt: date(fromMs: o["startedAt"]),
             updatedAt: date(fromMs: o["updatedAt"]),
-            statusUpdatedAt: date(fromMs: o["statusUpdatedAt"])
+            statusUpdatedAt: date(fromMs: o["statusUpdatedAt"]),
+            version: o["version"] as? String,
+            rawStatus: o["status"] as? String
         )
     }
 

@@ -41,4 +41,12 @@ import Testing
     @Test func malformedJSONReturnsNil() {
         #expect(SessionFileParser.parse("{not json".data(using: .utf8)!) == nil)
     }
+
+    @Test func keepsTheVersionAndTheStatusAsWritten() throws {      // spec 2026-09-23 §9.1
+        let r = try #require(SessionFileParser.parse(Self.waiting))
+        #expect(r.version == "2.1.261" && r.rawStatus == "waiting")
+        let odd = #"{"pid":5,"sessionId":"s","status":"compacting"}"#.data(using: .utf8)!
+        let o = try #require(SessionFileParser.parse(odd))
+        #expect(o.status == .unknown && o.rawStatus == "compacting" && o.version == nil)
+    }
 }
