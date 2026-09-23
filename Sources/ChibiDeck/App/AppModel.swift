@@ -235,6 +235,8 @@ final class AppModel {
     private var gridCount: Int { collector.state.sessions.count }
 
     func beginGridDrag() {
+        // Spec 2026-09-23 §8.8: the card menu, the sheet and the character select stay as they are; no grid drag under them.
+        guard ui.menuSessionId == nil, ui.selectedSessionId == nil, ui.characterSelectOpenedAt == nil else { return }
         ui.noteTouch()
         ui.gridDragStart = ui.gridOffset
     }
