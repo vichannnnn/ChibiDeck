@@ -12,8 +12,6 @@ final class DataCollector {
 
     private let settings: PanelSettings
     private var inputs = RawInputs()
-    private var listingTimer: Timer?
-    private var clockTimer: Timer?
     private var sessionsWatcher: DirectoryWatcher?
     private var feedWatcher: DirectoryWatcher?
     private var configMTime: Date?
@@ -25,13 +23,30 @@ final class DataCollector {
     private var burnInFlight = false
     private var jobMTimes: [String: Date] = [:]
     private var gitChain: Task<String?, Never>?
+    private var tickTimer: Timer?
+    private var minuteTimer: Timer?
+    private var jobsWatcher: DirectoryWatcher?
+    // Spec 2026-09-23 §4.3: the listing's clock, the event that asks for one early, and the file gates.
+    private var lastListingAttempt: Date?
+    private var listingWanted = false
+    private var knownSessionFiles: Set<String> = []
+    private var sessionFileGate = ChangeGate()
+    private var sessionFileCache: [String: SessionFileRecord?] = [:]    // nil value: unparseable until its stamp moves
+    private var feedGate = ChangeGate()
+    private var feedCache: [String: StatuslineRecord?] = [:]
+    private var transcriptGate = ChangeGate()
+    private var transcriptPaths: [String: String] = [:]          // session id → transcript path, for `retain`
 
     // Plan 3 §9.2: the only caches, all swept every tick.
     private var branchCache = ExpiringCache<String, String?>(ttl: DataCollector.branchInterval)        // keyed by cwd
     private var detailFresh = ExpiringCache<String, Bool>(ttl: DataCollector.detailInterval)           // keyed by session id
     private var deepReadAttempted = ExpiringCache<String, Bool>(ttl: DataCollector.deepReadInterval)   // keyed by session id
 
-    static let listingInterval: TimeInterval = 5
+    static let tickInterval: TimeInterval = 5
+    /// Spec 2026-09-23 §4.3: `claude agents --json` costs 0.24 s of CPU a call; every 30 s, or at most every 5 s when a
+    /// session started or exited or a job changed.
+    static let listingInterval: TimeInterval = 30
+    static let listingEventGap: TimeInterval = 5
     static let detailInterval: TimeInterval = 5
     static let burnInterval: TimeInterval = 60
     static let branchInterval: TimeInterval = 60
@@ -43,20 +58,20 @@ final class DataCollector {
     }
 
     func start() {
-        guard listingTimer == nil else { return }
+        guard tickTimer == nil else { return }
         // Plan 3 §8.1: the feed folder is ours; create it so the watcher has a path, and drop stale files.
         try? FileManager.default.createDirectory(at: ClaudePaths.statuslineFeedDir, withIntermediateDirectories: true)
         ClaudePaths.pruneStatuslineFeed()
         sessionsWatcher = DirectoryWatcher(paths: [ClaudePaths.sessionsDir]) { [weak self] paths in self?.sessionFilesChanged(paths) }
         feedWatcher = DirectoryWatcher(paths: [ClaudePaths.statuslineFeedDir]) { [weak self] paths in self?.feedChanged(paths) }
+        jobsWatcher = DirectoryWatcher(paths: [ClaudePaths.jobsDir]) { [weak self] _ in self?.listingWanted = true }   // spec 2026-09-23 §4.3
         sessionsWatcher?.start()
         feedWatcher?.start()
-        listingTimer = Timer.scheduledTimer(withTimeInterval: Self.listingInterval, repeats: true) { [weak self] _ in
+        if FileManager.default.fileExists(atPath: ClaudePaths.jobsDir.path) { jobsWatcher?.start() }
+        tickTimer = Timer.scheduledTimer(withTimeInterval: Self.tickInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.tick() }
         }
-        clockTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.rebuild(reason: nil) }
-        }
+        scheduleMinuteTick()
         inputs.burn = .indexing                                      // spec 2026-09-07 §2.3: "indexing…" until the first pass lands
         burnTimer = Timer.scheduledTimer(withTimeInterval: Self.burnInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.runBurnPass() }
@@ -66,6 +81,28 @@ final class DataCollector {
     }
 
     func refreshNow() { Task { await tick() } }
+
+    /// Spec 2026-09-23 §4.1: the state carries the minute, so it is rebuilt at each minute boundary (rescheduled to
+    /// the next boundary every time, so it does not drift) instead of every second.
+    private func scheduleMinuteTick() {
+        let now = Date()
+        let boundary = Calendar.current.dateInterval(of: .minute, for: now)?.end ?? now.addingTimeInterval(60)
+        minuteTimer = Timer.scheduledTimer(withTimeInterval: max(0.5, boundary.timeIntervalSince(now) + 0.05), repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.rebuild(reason: nil)
+                self?.scheduleMinuteTick()
+            }
+        }
+    }
+
+    /// Spec 2026-09-23 §4.3: every `listingInterval`, or sooner (at most every `listingEventGap`) when asked.
+    private func refreshListingIfDue(now: Date = Date()) async {
+        let since = lastListingAttempt.map { now.timeIntervalSince($0) } ?? .infinity
+        guard since >= Self.listingInterval || (listingWanted && since >= Self.listingEventGap) else { return }
+        listingWanted = false
+        lastListingAttempt = now
+        await refreshListing()
+    }
 
     /// Plan 3 §9.3: called on the way out so a dirty burn index reaches disk.
     func flush() { burnIndexer.flush() }
@@ -97,7 +134,7 @@ final class DataCollector {
     // MARK: - Refresh loop
 
     private func tick() async {
-        await refreshListing()
+        await refreshListingIfDue()
         readJobs()
         readSessionFiles()
         readConfigIfChanged()
@@ -121,6 +158,8 @@ final class DataCollector {
         jobMTimes = jobMTimes.filter { live.contains($0.key) }
         inputs.details = inputs.details.filter { live.contains($0.key) }
         inputs.hiddenSessionIds = inputs.hiddenSessionIds.filter { live.contains($0) }
+        transcriptPaths = transcriptPaths.filter { live.contains($0.key) }
+        transcriptGate.retain(Set(transcriptPaths.values))
     }
 
     private func refreshListing() async {
@@ -165,13 +204,26 @@ final class DataCollector {
 
     private func readSessionFiles() {
         var patches: [Int: SessionFileRecord] = [:]
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: ClaudePaths.sessionsDir.path)) ?? []
-        for name in names where name.hasSuffix(".json") {
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: ClaudePaths.sessionsDir.path)) ?? []).filter { $0.hasSuffix(".json") }
+        let nameSet = Set(names)
+        if nameSet != knownSessionFiles {                                  // spec 2026-09-23 §4.3: a session started or exited
+            if !knownSessionFiles.isEmpty { listingWanted = true }
+            knownSessionFiles = nameSet
+        }
+        var paths: Set<String> = []
+        for name in names {
             let url = ClaudePaths.sessionsDir.appendingPathComponent(name)
-            guard let data = try? Data(contentsOf: url), let rec = SessionFileParser.parse(data) else { continue }
-            guard kill(pid_t(rec.pid), 0) == 0 else { continue }   // ignore files for dead pids (spec §11)
+            paths.insert(url.path)
+            let stamp = ClaudePaths.stamp(url)
+            if sessionFileGate.shouldRead(url.path, stamp: stamp) {
+                sessionFileCache[url.path] = (try? Data(contentsOf: url)).flatMap(SessionFileParser.parse)
+                sessionFileGate.markRead(url.path, stamp: stamp)
+            }
+            guard let rec = sessionFileCache[url.path] ?? nil, kill(pid_t(rec.pid), 0) == 0 else { continue }   // spec §11: dead pids
             patches[rec.pid] = rec
         }
+        sessionFileGate.retain(paths)
+        sessionFileCache = sessionFileCache.filter { paths.contains($0.key) }
         inputs.filePatches = patches
     }
 
@@ -182,6 +234,7 @@ final class DataCollector {
         let wasWaiting = Set(state.sessions.filter { $0.status == .waiting }.map(\.sessionId))
         readSessionFiles()
         rebuild(reason: "sessions")
+        if listingWanted { Task { @MainActor in await refreshListingIfDue(); rebuild(reason: "listing") } }
         let flipped = state.sessions.filter { $0.status == .waiting && !wasWaiting.contains($0.sessionId) }.map(\.sessionId)
         guard !flipped.isEmpty else { return }
         for id in flipped { detailFresh.remove(id) }
@@ -231,10 +284,18 @@ final class DataCollector {
         if let data = try? Data(contentsOf: ClaudePaths.statsCache) { inputs.activity = StatsCacheParser.parse(data) }
     }
 
+    /// Spec 2026-09-23 §4.3: a feed file is parsed again only when its stamp moved; one cache serves both readers.
+    private func cachedFeedRecord(at url: URL, stamp: FileStamp?) -> StatuslineRecord? {
+        if feedGate.shouldRead(url.path, stamp: stamp) {
+            feedCache[url.path] = (try? Data(contentsOf: url)).flatMap { StatuslineParser.parse($0, fetchedAt: stamp?.modified) }
+            feedGate.markRead(url.path, stamp: stamp)
+        }
+        return feedCache[url.path] ?? nil
+    }
+
     private func feedRecord(for sessionId: String) -> StatuslineRecord? {
         let url = ClaudePaths.statuslineFeedDir.appendingPathComponent("\(sessionId).json")
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return StatuslineParser.parse(data)
+        return cachedFeedRecord(at: url, stamp: ClaudePaths.stamp(url))
     }
 
     /// Today's feed files give two things: each session's cost, and the `rate_limits` Claude Code refreshes from the
@@ -242,15 +303,19 @@ final class DataCollector {
     /// file carries a cost, so the panel's bars follow the feed and no longer wait for `/usage` to rewrite the cache.
     private func readFeedCosts() {
         var costs: [String: Double] = [:]
+        var paths: Set<String> = []
         let names = (try? FileManager.default.contentsOfDirectory(atPath: ClaudePaths.statuslineFeedDir.path)) ?? []
         let cal = Calendar.current
         for name in names where name.hasSuffix(".json") {
             let url = ClaudePaths.statuslineFeedDir.appendingPathComponent(name)
-            guard let m = ClaudePaths.modificationDate(url), cal.isDateInToday(m),
-                  let data = try? Data(contentsOf: url), let rec = StatuslineParser.parse(data, fetchedAt: m) else { continue }
+            paths.insert(url.path)
+            guard let stamp = ClaudePaths.stamp(url), cal.isDateInToday(stamp.modified),
+                  let rec = cachedFeedRecord(at: url, stamp: stamp) else { continue }
             if let limits = rec.rateLimits { adoptLimits(limits) }
             if let cost = rec.totalCostUSD { costs[rec.sessionId] = cost }
         }
+        feedGate.retain(paths)
+        feedCache = feedCache.filter { paths.contains($0.key) }
         inputs.feedCostsToday = costs
     }
 
@@ -261,7 +326,14 @@ final class DataCollector {
         detailFresh.set(true, for: sessionId, now: now)
         let feed = feedRecord(for: sessionId)
         let transcriptURL = feed?.transcriptPath.map { URL(fileURLWithPath: $0) } ?? ClaudePaths.transcriptURL(cwd: session.cwd, sessionId: sessionId)
-        var transcript = await Task.detached(priority: .utility) { TranscriptTail.read(url: transcriptURL) }.value
+        // Spec 2026-09-23 §4.3: an unchanged transcript keeps its last summary (`mergeDetail` with nil keeps everything).
+        let stamp = ClaudePaths.stamp(transcriptURL)
+        transcriptPaths[sessionId] = transcriptURL.path
+        var transcript: TranscriptSummary?
+        if transcriptGate.shouldRead(transcriptURL.path, stamp: stamp) || inputs.details[sessionId] == nil {
+            transcript = await Task.detached(priority: .utility) { TranscriptTail.read(url: transcriptURL) }.value
+            transcriptGate.markRead(transcriptURL.path, stamp: stamp)
+        }
         // Plan 3 §9.1: a tool-heavy session's last human prompt can lie megabytes before the end. Read further back
         // once (per ten minutes), and only while no prompt is known; once found it sticks through `mergeDetail`.
         if transcript != nil, transcript?.lastUserPrompt == nil, session.kind == .interactive,
@@ -302,7 +374,7 @@ final class DataCollector {
             lastSignature = signature
             lastStateChange = Date()
         }
-        state = next
+        if next != state { state = next }                   // spec 2026-09-23 §4.1: nothing changed, nothing redraws
         if let reason { dataLog.debug("rebuild(\(reason)): \(next.allSessions.count) sessions, stale=\(next.isStale)") }
     }
 }

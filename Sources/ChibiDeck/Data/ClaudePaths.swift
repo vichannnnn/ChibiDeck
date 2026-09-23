@@ -47,6 +47,13 @@ enum ClaudePaths {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
+    /// Spec 2026-09-23 §4.3: size and modification date in one `stat`; nil when the file cannot be read.
+    static func stamp(_ url: URL) -> FileStamp? {
+        guard let a = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = (a[.size] as? NSNumber)?.intValue, let modified = a[.modificationDate] as? Date else { return nil }
+        return FileStamp(size: size, modified: modified)
+    }
+
     /// Plan 3 §8.1: feed files older than `maxAge` are deleted at launch. This folder is the app's own.
     static func pruneStatuslineFeed(now: Date = Date(), maxAge: TimeInterval = 24 * 3600) {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: statuslineFeedDir.path)) ?? []
