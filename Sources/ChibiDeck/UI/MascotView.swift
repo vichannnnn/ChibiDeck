@@ -3,29 +3,36 @@ import PanelCore
 
 /// Spec 2026-09-23 §5: one pre-rendered image per sprite frame, drawn unfiltered at a whole-number `scale`, so each
 /// sprite pixel covers `scale × scale` device pixels (the Edge at 1×, or HiDPI and the Retina preview at 0.5 × 2).
-/// 4 fps as spec 2026-09-08 §3; the timeline only picks the image.
+/// 4 fps as spec 2026-09-08 §3: a task sleeps to each `MascotClock` tick and only picks the image (not a periodic
+/// `TimelineView`, which at this rate redraws the whole panel every display frame; see `MascotClock`).
 struct MascotView: View {
     let mascot: Mascot
     let pose: MascotPose
     let scale: Int
     var desaturated = false
+    @State private var tick = MascotClock.tick(at: Date().timeIntervalSinceReferenceDate)
 
     var body: some View {
         let frames = MascotImages.shared.frames(for: mascot, pose: pose)
-        TimelineView(.periodic(from: .now, by: 0.25)) { context in
-            let index = frames.isEmpty ? 0 : Int(context.date.timeIntervalSinceReferenceDate * 4) % frames.count
-            Group {
-                if frames.isEmpty {
-                    Color.clear
-                } else {
-                    Image(decorative: frames[index], scale: 1).resizable().interpolation(.none).antialiased(false)
-                }
+        Group {
+            if frames.isEmpty {
+                Color.clear
+            } else {
+                Image(decorative: frames[MascotClock.frame(tick: tick, count: frames.count)], scale: 1)
+                    .resizable().interpolation(.none).antialiased(false)
             }
-            .saturation(desaturated ? 0 : 1)
-            .opacity(desaturated ? 0.55 : 1)
         }
+        .saturation(desaturated ? 0 : 1)
+        .opacity(desaturated ? 0.55 : 1)
         .frame(width: CGFloat(mascot.cols * scale), height: CGFloat(mascot.rows * scale))
         .accessibilityLabel("\(mascot.displayName), \(pose.rawValue)")
+        .task {
+            while !Task.isCancelled {
+                let next = MascotClock.next(after: Date().timeIntervalSinceReferenceDate)
+                try? await Task.sleep(for: .seconds(next.delay))
+                tick = next.tick
+            }
+        }
     }
 }
 
