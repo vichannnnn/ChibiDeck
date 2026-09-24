@@ -21,7 +21,8 @@ public struct TranscriptSummary: Sendable, Equatable {
     public var handoffTurnEnded: Bool
     /// Spec 2026-09-23 §3.1: the last non-empty `aiTitle` of an `ai-title` record, Claude Code's own session title.
     public var aiTitle: String?
-    /// Spec 2026-09-23 §9.1: what the format check counts in the tail.
+    /// Spec 2026-09-23 §9.1: what the format check counts: in the tail, or for a continued read in the tail it started
+    /// from plus what was appended since (at most twice the tail).
     public var humanPrompts: Int
     public var assistantRecords: Int
     public var turnEnds: Int
@@ -48,6 +49,28 @@ public struct TranscriptSummary: Sendable, Equatable {
         self.turnEnds = turnEnds
         self.sawUsage = sawUsage
     }
+}
+
+/// What a transcript parse knows between two reads: the summary so far, the tool calls still waiting for a result,
+/// and whether a `/handoff` command has been seen.
+struct TranscriptParseState: Sendable, Equatable {
+    var summary = TranscriptSummary(lastUserPrompt: nil, lastAssistantText: nil, modelId: nil, contextTokens: nil, lastActivity: nil)
+    var open: [(id: String, input: PendingInput)] = []
+    var sawHandoff = false
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.summary == b.summary && a.sawHandoff == b.sawHandoff && a.open.map(\.id) == b.open.map(\.id) && a.open.map(\.input) == b.open.map(\.input)
+    }
+}
+
+/// Where the last read of one transcript stopped (see `TranscriptTail.read(url:continuing:maxBytes:)`).
+public struct TranscriptCursor: Sendable, Equatable {
+    let fileID: UInt64
+    /// The byte after the last complete line parsed.
+    var offset: UInt64
+    /// Bytes parsed since the last read that started from the tail.
+    var sinceTailRead: UInt64
+    var state: TranscriptParseState
 }
 
 public enum TranscriptTail {
@@ -90,13 +113,52 @@ public enum TranscriptTail {
         return parse(chunk: chunk, dropFirstLine: start > 0)
     }
 
+    /// Carries on from `cursor`: parses only the complete lines appended since it, into the summary the cursor kept.
+    /// A new file at the path, a shorter one, or `maxBytes` more appended since the last tail read start over from
+    /// the last `maxBytes`, so the summary (and its format-check counts, spec 2026-09-23 §9.1) covers at most the
+    /// last `2 × maxBytes`. A line still being written (no newline yet) is left for the next read. Nil when the file
+    /// cannot be read.
+    public static func read(url: URL, continuing cursor: TranscriptCursor?, maxBytes: Int = defaultMaxBytes)
+        -> (summary: TranscriptSummary, cursor: TranscriptCursor)? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        var info = stat()
+        guard fstat(handle.fileDescriptor, &info) == 0, let size = try? handle.seekToEnd() else { return nil }
+        let fileID = UInt64(info.st_ino)
+        if let c = cursor, c.fileID == fileID, size >= c.offset, c.sinceTailRead + (size - c.offset) <= UInt64(maxBytes) {
+            guard (try? handle.seek(toOffset: c.offset)) != nil, let data = try? handle.readToEnd() else { return nil }
+            guard let end = data.lastIndex(of: 0x0A) else { return (c.state.summary, c) }
+            let complete = data[data.startIndex...end]
+            var next = c
+            fold(String(decoding: complete, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: true), into: &next.state)
+            next.offset += UInt64(complete.count)
+            next.sinceTailRead += UInt64(complete.count)
+            return (next.state.summary, next)
+        }
+        let start = size > UInt64(maxBytes) ? size - UInt64(maxBytes) : 0
+        guard (try? handle.seek(toOffset: start)) != nil, let data = try? handle.readToEnd() else { return nil }
+        var from = data.startIndex
+        if start > 0 { from = data.firstIndex(of: 0x0A).map { data.index(after: $0) } ?? data.endIndex }   // a cut first line
+        var state = TranscriptParseState()
+        var through = from
+        if let end = data[from...].lastIndex(of: 0x0A) {
+            through = data.index(after: end)
+            fold(String(decoding: data[from..<through], as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: true), into: &state)
+        }
+        return (state.summary, TranscriptCursor(fileID: fileID, offset: start + UInt64(through - data.startIndex), sinceTailRead: 0, state: state))
+    }
+
     public static func parse(chunk: String, dropFirstLine: Bool) -> TranscriptSummary {
         var lines = chunk.split(separator: "\n", omittingEmptySubsequences: true)
         if dropFirstLine, !lines.isEmpty { lines.removeFirst() }
+        var state = TranscriptParseState()
+        fold(lines, into: &state)
+        return state.summary
+    }
 
-        var summary = TranscriptSummary(lastUserPrompt: nil, lastAssistantText: nil, modelId: nil, contextTokens: nil, lastActivity: nil)
-        var open: [(id: String, name: String, input: [String: Any])] = []
-        var sawHandoff = false
+    /// The parse itself, one record after another, so a later read can carry on from where the last one stopped.
+    static func fold(_ lines: some Sequence<Substring>, into state: inout TranscriptParseState) {
+        var summary = state.summary
         for line in lines {
             guard let data = line.data(using: .utf8),
                   let o = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { continue }
@@ -107,7 +169,7 @@ public enum TranscriptTail {
             switch o["type"] as? String {
             case "user":
                 if rawText(message?["content"])?.contains(handoffMarker) == true {   // Handoff §4: a new request voids an older reply
-                    sawHandoff = true
+                    state.sawHandoff = true
                     summary.handoffRequested = true
                     summary.handoffRequestedAt = (o["timestamp"] as? String).flatMap(ISO8601.parse)
                     summary.handoffReply = nil
@@ -118,17 +180,17 @@ public enum TranscriptTail {
                 if let text = userText(message?["content"]) {
                     summary.humanPrompts += 1                                 // spec 2026-09-23 §9.1
                     summary.lastUserPrompt = text
-                    open.removeAll()                                          // a dialog belongs to the current turn
+                    state.open.removeAll()                                    // a dialog belongs to the current turn
                 }
-                for id in toolResultIds(message?["content"]) { open.removeAll { $0.id == id } }
+                for id in toolResultIds(message?["content"]) { state.open.removeAll { $0.id == id } }
             case "assistant":
                 summary.assistantRecords += 1                                 // spec 2026-09-23 §9.1
-                open.append(contentsOf: toolUses(message?["content"]))
+                state.open.append(contentsOf: toolUses(message?["content"]).map { (id: $0.id, input: pendingInput(name: $0.name, input: $0.input)) })
                 if let text = assistantText(message?["content"]) {
                     summary.lastAssistantText = text
                     // Review 2026-09-08: only a complete fence is a reply — an API-error record ("You've reached your
                     // limit…", `isApiErrorMessage`) or a remark after the block ends the turn too and must not be pasted.
-                    if sawHandoff, (o["isApiErrorMessage"] as? Bool) != true, HandoffReply.block(in: text) != nil {
+                    if state.sawHandoff, (o["isApiErrorMessage"] as? Bool) != true, HandoffReply.block(in: text) != nil {
                         summary.handoffReply = text
                         summary.handoffReplyAt = (o["timestamp"] as? String).flatMap(ISO8601.parse)
                         summary.handoffTurnEnded = false
@@ -153,8 +215,8 @@ public enum TranscriptTail {
                 continue
             }
         }
-        summary.pending = open.last.map { pendingInput(name: $0.name, input: $0.input) }
-        return summary
+        summary.pending = state.open.last?.input
+        state.summary = summary
     }
 
     /// The user record's text before the human-prompt filter: a plain string, or the joined `text` blocks.

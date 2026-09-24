@@ -39,6 +39,8 @@ final class DataCollector {
     private var feedCache: [String: StatuslineRecord?] = [:]
     private var feedObserveGate = ChangeGate()    // finding Important 1: canary evidence recorded once per write, not once per tick
     private var transcriptGate = ChangeGate()
+    /// Where the last read of each transcript stopped, keyed by path: a changed transcript parses only what was appended.
+    private var transcriptCursors: [String: TranscriptCursor] = [:]
     private var transcriptPaths: [String: String] = [:]          // session id → transcript path, for `retain`
     private var canary = FormatCanary()
     private var loggedWarnings: Set<String> = []
@@ -168,6 +170,7 @@ final class DataCollector {
         inputs.hiddenSessionIds = inputs.hiddenSessionIds.filter { live.contains($0) }
         transcriptPaths = transcriptPaths.filter { live.contains($0.key) }
         transcriptGate.retain(Set(transcriptPaths.values))
+        transcriptCursors = transcriptCursors.filter { transcriptPaths.values.contains($0.key) }
     }
 
     private func refreshListing() async {
@@ -366,8 +369,12 @@ final class DataCollector {
         transcriptPaths[sessionId] = transcriptURL.path
         let readTranscript = transcriptGate.shouldRead(transcriptURL.path, stamp: stamp) || inputs.details[sessionId] == nil
         var transcript: TranscriptSummary?
+        var cursor: TranscriptCursor?
         if readTranscript {
-            transcript = await Task.detached(priority: .utility) { TranscriptTail.read(url: transcriptURL) }.value
+            let from = transcriptCursors[transcriptURL.path]
+            let read = await Task.detached(priority: .utility) { TranscriptTail.read(url: transcriptURL, continuing: from) }.value
+            transcript = read?.summary
+            cursor = read?.cursor
             if let t = transcript {                                                        // spec 2026-09-23 §9.1
                 let now = Date()
                 if t.assistantRecords > 0 { canary.observe(.transcriptUsage, present: t.sawUsage, at: now) }
@@ -391,7 +398,10 @@ final class DataCollector {
         let branch = await gitBranch(for: session.cwd, force: force)
         // Spec 2026-09-23 §4.3: mark with the stamp taken before the read, right before its summary is merged, so the last
         // refresh to merge is the last to mark; a failed read (nil) is not marked and is retried (spec §12).
-        if readTranscript, transcript != nil { transcriptGate.markRead(transcriptURL.path, stamp: stamp) }
+        if readTranscript, transcript != nil {
+            transcriptGate.markRead(transcriptURL.path, stamp: stamp)
+            transcriptCursors[transcriptURL.path] = cursor
+        }
         inputs.details[sessionId] = StateBuilder.mergeDetail(existing: inputs.details[sessionId] ?? .empty, feed: feed, transcript: transcript, tasks: tasks, branch: branch)
     }
 
